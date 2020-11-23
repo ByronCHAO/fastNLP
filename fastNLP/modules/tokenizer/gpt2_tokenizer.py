@@ -90,7 +90,7 @@ def gpt2_tokenize(text, add_prefix_space=True):
     :param bool add_prefix_space: 是否在句子前面加上space，如果加上才能保证与GPT2训练时一致
     :return: []
     """
-    if text is '':
+    if text == '':
         return []
     if add_prefix_space:
         text = ' ' + text

@@ -177,8 +177,8 @@ class ConstantTokenNumSampler:
         if self.use_kmeans:
             batches = []
             for i in np.random.permutation(len(self.indice_in_buckets)):
-                for batch in np.array_split(np.random.permutation(len(self.buckets[i])), self.chunks[i]):
-                    batches.append([self.buckets[i][j] for j in batch])
+                for batch in np.array_split(np.random.permutation(len(self.indice_in_buckets[i])), self.chunks[i]):
+                    batches.append([self.indice_in_buckets[i][j] for j in batch])
             self.batches = batches
             return
 
