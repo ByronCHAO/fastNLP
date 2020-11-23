@@ -45,7 +45,7 @@ class CNNCharEmbedding(TokenEmbedding):
     def __init__(self, vocab: Vocabulary, embed_size: int = 50, char_emb_size: int = 50, word_dropout: float = 0,
                  dropout: float = 0, filter_nums: List[int] = (40, 30, 20), kernel_sizes: List[int] = (5, 3, 1),
                  pool_method: str = 'max', activation='relu', min_char_freq: int = 2, pre_train_char_embed: str = None,
-                 requires_grad:bool=True, include_word_start_end:bool=True):
+                 requires_grad:bool=True, include_word_start_end:bool=True, linear:bool=True):
         r"""
         
         :param vocab: 词表
@@ -63,6 +63,8 @@ class CNNCharEmbedding(TokenEmbedding):
             没有的话将自动下载。如果输入为None则使用embedding_dim的维度随机初始化一个embedding.
         :param requires_grad: 是否更新权重
         :param include_word_start_end: 是否在每个word开始的character前和结束的character增加特殊标示符号；
+        :param no_linear: 是否在最后添加一个linear layer。如果False，sum(filter_nums)应当等于embed_size。默认值为True.
+
         """
         super(CNNCharEmbedding, self).__init__(vocab, word_dropout=word_dropout, dropout=dropout)
         
@@ -118,7 +120,11 @@ class CNNCharEmbedding(TokenEmbedding):
             padding=kernel_sizes[i] // 2)
             for i in range(len(kernel_sizes))])
         self._embed_size = embed_size
-        self.fc = nn.Linear(sum(filter_nums), embed_size)
+        self.use_linear = linear
+        if linear:
+            self.fc = nn.Linear(sum(filter_nums), embed_size)
+        else:
+            assert sum(filter_nums) == embed_size, "Invalid embed_size because you set linear=False."
         self.requires_grad = requires_grad
 
     def forward(self, words):
@@ -150,7 +156,8 @@ class CNNCharEmbedding(TokenEmbedding):
         else:
             conv_chars = conv_chars.masked_fill(chars_masks.unsqueeze(-1), 0)
             chars = torch.sum(conv_chars, dim=-2) / chars_masks.eq(False).sum(dim=-1, keepdim=True).float()
-        chars = self.fc(chars)
+        if self.use_linear:
+            chars = self.fc(chars)
         return self.dropout(chars)
 
 
@@ -175,7 +182,7 @@ class LSTMCharEmbedding(TokenEmbedding):
     def __init__(self, vocab: Vocabulary, embed_size: int = 50, char_emb_size: int = 50, word_dropout: float = 0,
                  dropout: float = 0, hidden_size=50, pool_method: str = 'max', activation='relu',
                  min_char_freq: int = 2, bidirectional=True, pre_train_char_embed: str = None,
-                 requires_grad:bool=True, include_word_start_end:bool=True):
+                 requires_grad:bool=True, include_word_start_end:bool=True, linear:bool=True):
         r"""
         
         :param vocab: 词表
@@ -193,6 +200,7 @@ class LSTMCharEmbedding(TokenEmbedding):
             没有的话将自动下载。如果输入为None则使用embedding_dim的维度随机初始化一个embedding.
         :param requires_grad: 是否更新权重
         :param include_word_start_end: 是否在每个word开始的character前和结束的character增加特殊标示符号；
+        :param no_linear: 是否在最后添加一个linear layer。如果False，sum(filter_nums)应当等于embed_size。默认值为True.
         """
         super(LSTMCharEmbedding, self).__init__(vocab, word_dropout=word_dropout, dropout=dropout)
         
@@ -241,7 +249,11 @@ class LSTMCharEmbedding(TokenEmbedding):
         else:
             self.char_embedding = get_embeddings((len(self.char_vocab), char_emb_size))
         
-        self.fc = nn.Linear(hidden_size, embed_size)
+        self.use_linear = linear
+        if linear:
+            self.fc = nn.Linear(hidden_size, embed_size)
+        else:
+            assert hidden_size == embed_size, "Invalid embed_size because you set linear=False."
         hidden_size = hidden_size // 2 if bidirectional else hidden_size
         
         self.lstm = LSTM(self.char_embedding.embedding_dim, hidden_size, bidirectional=bidirectional, batch_first=True)
@@ -279,6 +291,7 @@ class LSTMCharEmbedding(TokenEmbedding):
             lstm_chars = lstm_chars.masked_fill(chars_masks.unsqueeze(-1), 0)
             chars = torch.sum(lstm_chars, dim=-2) / chars_masks.eq(False).sum(dim=-1, keepdim=True).float()
         
-        chars = self.fc(chars)
+        if self.use_linear:
+            chars = self.fc(chars)
         
         return self.dropout(chars)
