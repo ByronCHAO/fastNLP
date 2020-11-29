@@ -3,6 +3,7 @@ sampler 子类实现了 fastNLP 所需的各种采样器。
 """
 __all__ = ["Sampler", "BucketSampler", "SequentialSampler", "RandomSampler", "SortedSampler", "ConstantTokenNumSampler"]
 
+import random
 from itertools import chain
 
 import numpy as np
@@ -176,9 +177,10 @@ class ConstantTokenNumSampler:
     def get_new_order(self):
         if self.use_kmeans:
             batches = []
-            for i in np.random.permutation(len(self.indice_in_buckets)):
+            for i in range(len(self.indice_in_buckets)):
                 for batch in np.array_split(np.random.permutation(len(self.indice_in_buckets[i])), self.chunks[i]):
                     batches.append([self.indice_in_buckets[i][j] for j in batch])
+            random.shuffle(batches)
             self.batches = batches
             return
 
