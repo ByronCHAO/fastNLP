@@ -137,7 +137,7 @@ class ConstantTokenNumSampler:
         :param bool use_kmeans: 使用KMeans对长度聚类，生成bucket. 基于 https://github.com/yzhangcs/parser 中的实现
         """
         assert (max_sentence != -1 and max_sentence >= need_be_multiple_of) or max_sentence < 1
-        assert len(seq_len) > num_bucket, "The number of samples should be larger than buckets."
+        assert len(seq_len) >= num_bucket, "The number of samples should be larger than buckets."
         self.seq_len = seq_len
         self.max_token = max_token
         self._max_sentence = max_sentence
@@ -149,7 +149,10 @@ class ConstantTokenNumSampler:
             if use_kmeans:
                 self.centroids, indice_in_buckets = self.kmeans(seq_len, num_bucket)
                 self.chunks = [
-                    min(len(bucket), max(round(size * len(bucket) / max_token), 1))
+                    min(
+                        len(bucket),
+                        max(1, round(size * len(bucket) / max_token),
+                            round(size / max_sentence) if max_sentence >= 1 else 0))
                     for size, bucket in zip(self.centroids, indice_in_buckets)
                 ]
             else:
