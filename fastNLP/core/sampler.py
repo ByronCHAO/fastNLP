@@ -152,7 +152,7 @@ class ConstantTokenNumSampler:
                     min(
                         len(bucket),
                         max(1, round(size * len(bucket) / max_token),
-                            round(size / max_sentence) if max_sentence >= 1 else 0))
+                            ((len(bucket) + max_sentence - 1) // max_sentence) if max_sentence >= 1 else 0))
                     for size, bucket in zip(self.centroids, indice_in_buckets)
                 ]
             else:
