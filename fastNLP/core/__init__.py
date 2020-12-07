@@ -13,24 +13,25 @@ core 模块里实现了 fastNLP 的核心框架，常用的功能都可以从 fa
 """
 __all__ = [
     "DataSet",
-    
+
     "Instance",
-    
+
     "FieldArray",
     "Padder",
     "AutoPadder",
     "EngChar2DPadder",
+    "SentFeat2DPadder",
 
     "ConcatCollateFn",
-    
+
     "Vocabulary",
-    
+
     "DataSetIter",
     "BatchIter",
     "TorchLoaderIter",
-    
+
     "Const",
-    
+
     "Tester",
     "Trainer",
 
@@ -79,7 +80,7 @@ __all__ = [
     "SGD",
     "Adam",
     "AdamW",
-    
+
     "SequentialSampler",
     "BucketSampler",
     "RandomSampler",
@@ -95,7 +96,7 @@ from .callback import Callback, GradientClipCallback, EarlyStopCallback, FitlogC
     EarlyStopError, CheckPointCallback
 from .const import Const
 from .dataset import DataSet
-from .field import FieldArray, Padder, AutoPadder, EngChar2DPadder
+from .field import FieldArray, Padder, AutoPadder, EngChar2DPadder, SentFeat2DPadder
 from .instance import Instance
 from .losses import LossFunc, CrossEntropyLoss, L1Loss, BCELoss, NLLLoss, \
     LossInForward, CMRC2018Loss, LossBase, MSELoss

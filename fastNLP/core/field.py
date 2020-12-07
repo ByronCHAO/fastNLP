@@ -39,7 +39,13 @@ class AppendToTargetOrInputException(Exception):
 
 
 class FieldArray:
-    def __init__(self, name, content, is_target=False, is_input=False, padder=None, ignore_type=False,
+    def __init__(self,
+                 name,
+                 content,
+                 is_target=False,
+                 is_input=False,
+                 padder=None,
+                 ignore_type=False,
                  use_1st_ins_infer_dim_type=True):
         if len(content) == 0:
             raise RuntimeError("Empty fieldarray is not allowed.")
@@ -58,34 +64,34 @@ class FieldArray:
         self._use_1st_ins_infer_dim_type = bool(use_1st_ins_infer_dim_type)
         self._is_input = False
         self._is_target = False
-        
+
         if is_input:
             self.is_input = is_input
         if is_target:
             self.is_target = is_target
-        
+
         if padder is None:
             padder = AutoPadder(pad_val=0)
         else:
             assert isinstance(padder, Padder), "padder must be of type fastNLP.Padder."
             padder = deepcopy(padder)
         self.set_padder(padder)
-    
+
     @property
     def ignore_type(self):
         return self._ignore_type
-    
+
     @ignore_type.setter
     def ignore_type(self, value):
         if value:
             self._cell_ndim = None
             self.dtype = None
         self._ignore_type = value
-    
+
     @property
     def is_input(self):
         return self._is_input
-    
+
     @is_input.setter
     def is_input(self, value):
         r"""
@@ -100,11 +106,11 @@ class FieldArray:
             self.dtype = None
             self._cell_ndim = None
         self._is_input = value
-    
+
     @property
     def is_target(self):
         return self._is_target
-    
+
     @is_target.setter
     def is_target(self, value):
         r"""
@@ -118,7 +124,7 @@ class FieldArray:
             self.dtype = None
             self._cell_ndim = None
         self._is_target = value
-    
+
     def _check_dtype_and_ndim(self, only_check_1st_ins_dim_type=True):
         r"""
         检查当前content所有的element是否是同一个类型，且是否每个元素具有相同的维度。通过的话，设置_cell_ndim与_ele_type属性；没有
@@ -148,7 +154,7 @@ class FieldArray:
         except SetInputOrTargetException as e:
             e.index = index
             raise e
-    
+
     def append(self, val: Any):
         r"""
         :param val: 把该val append到fieldarray。
@@ -165,7 +171,7 @@ class FieldArray:
             self.content.append(val)
         else:
             self.content.append(val)
-    
+
     def pop(self, index):
         r"""
         删除该field中index处的元素
@@ -173,10 +179,10 @@ class FieldArray:
         :return:
         """
         self.content.pop(index)
-    
+
     def __getitem__(self, indices):
         return self.get(indices, pad=False)
-    
+
     def __setitem__(self, idx, val):
         assert isinstance(idx, int)
         if (self._is_target or self._is_input) and self.ignore_type is False:  # 需要检测类型
@@ -188,7 +194,7 @@ class FieldArray:
                 raise RuntimeError(f"Value(dim:{dim_}) are of different dimensions with "
                                    f"previous values(dim:{self._cell_ndim}).")
         self.content[idx] = val
-    
+
     def get(self, indices, pad=True):
         r"""
         根据给定的indices返回内容。
@@ -208,7 +214,7 @@ class FieldArray:
             return self.pad(contents)
         else:
             return np.array(contents)
-    
+
     def pad(self, contents):
         r"""
         传入list的contents，将contents使用padder进行padding，contents必须为从本FieldArray中取出的。
@@ -217,7 +223,7 @@ class FieldArray:
         :return:
         """
         return self.padder(contents, field_name=self.name, field_ele_dtype=self.dtype, dim=self._cell_ndim)
-    
+
     def set_padder(self, padder):
         r"""
         设置padder，在这个field进行pad的时候用这个padder进行pad，如果为None则不进行pad。
@@ -229,7 +235,7 @@ class FieldArray:
             self.padder = deepcopy(padder)
         else:
             self.padder = None
-    
+
     def set_pad_val(self, pad_val):
         r"""
         修改padder的pad_val.
@@ -239,7 +245,7 @@ class FieldArray:
         if self.padder is not None:
             self.padder.set_pad_val(pad_val)
         return self
-    
+
     def __len__(self):
         r"""
         Returns the size of FieldArray.
@@ -247,7 +253,7 @@ class FieldArray:
         :return int length:
         """
         return len(self.content)
-    
+
     def to(self, other):
         r"""
         将other的属性复制给本FieldArray(other必须为FieldArray类型).
@@ -257,14 +263,14 @@ class FieldArray:
         :return: :class:`~fastNLP.FieldArray`
         """
         assert isinstance(other, FieldArray), "Only supports fastNLP.FieldArray type, not {}.".format(type(other))
-        
+
         self.ignore_type = other.ignore_type
         self.is_input = other.is_input
         self.is_target = other.is_target
         self.padder = other.padder
-        
+
         return self
-    
+
     def split(self, sep: str = None, inplace: bool = True):
         r"""
         依次对自身的元素使用.split()方法，应该只有当本field的元素为str时，该方法才有用。将返回值
@@ -281,7 +287,7 @@ class FieldArray:
                 logger.error(f"Exception happens when process value in index {index}.")
                 raise e
         return self._after_process(new_contents, inplace=inplace)
-    
+
     def int(self, inplace: bool = True):
         r"""
         将本field中的值调用int(cell). 支持field中内容为以下两种情况(1)['1', '2', ...](即field中每个值为str的)，
@@ -301,7 +307,7 @@ class FieldArray:
                 logger.error(f"Exception happens when process value in index {index}.")
                 raise e
         return self._after_process(new_contents, inplace=inplace)
-    
+
     def float(self, inplace=True):
         r"""
         将本field中的值调用float(cell). 支持field中内容为以下两种情况(1)['1', '2', ...](即field中每个值为str的)，
@@ -321,7 +327,7 @@ class FieldArray:
                 logger.error(f"Exception happens when process value in index {index}.")
                 raise e
         return self._after_process(new_contents, inplace=inplace)
-    
+
     def bool(self, inplace=True):
         r"""
         将本field中的值调用bool(cell). 支持field中内容为以下两种情况(1)['1', '2', ...](即field中每个值为str的)，
@@ -340,9 +346,9 @@ class FieldArray:
             except Exception as e:
                 logger.error(f"Exception happens when process value in index {index}.")
                 raise e
-        
+
         return self._after_process(new_contents, inplace=inplace)
-    
+
     def lower(self, inplace=True):
         r"""
         将本field中的值调用cell.lower(). 支持field中内容为以下两种情况(1)['1', '2', ...](即field中每个值为str的)，
@@ -362,7 +368,7 @@ class FieldArray:
                 logger.error(f"Exception happens when process value in index {index}.")
                 raise e
         return self._after_process(new_contents, inplace=inplace)
-    
+
     def upper(self, inplace=True):
         r"""
         将本field中的值调用cell.lower(). 支持field中内容为以下两种情况(1)['1', '2', ...](即field中每个值为str的)，
@@ -382,7 +388,7 @@ class FieldArray:
                 logger.error(f"Exception happens when process value in index {index}.")
                 raise e
         return self._after_process(new_contents, inplace=inplace)
-    
+
     def value_count(self):
         r"""
         返回该field下不同value的数量。多用于统计label数量
@@ -390,18 +396,18 @@ class FieldArray:
         :return: Counter, key是label，value是出现次数
         """
         count = Counter()
-        
+
         def cum(cell):
             if _is_iterable(cell) and not isinstance(cell, str):
                 for cell_ in cell:
                     cum(cell_)
             else:
                 count[cell] += 1
-        
+
         for cell in self.content:
             cum(cell)
         return count
-    
+
     def _after_process(self, new_contents, inplace):
         r"""
         当调用处理函数之后，决定是否要替换field。
@@ -477,7 +483,6 @@ class Padder:
     .. py:function:: __call__(self, contents, field_name, field_ele_dtype):
     
     """
-    
     def __init__(self, pad_val=0, **kwargs):
         r"""
         
@@ -488,7 +493,7 @@ class Padder:
         :return: np.array([padded_element])
         """
         self.pad_val = pad_val
-    
+
     def set_pad_val(self, pad_val):
         self.pad_val = pad_val
 
@@ -561,10 +566,9 @@ class AutoPadder(Padder):
 
     3 其它情况不进行处理，返回一个np.array类型。
     """
-    
     def __init__(self, pad_val=0):
         super().__init__(pad_val=pad_val)
-    
+
     def __call__(self, contents, field_name, field_ele_dtype, dim):
         if field_ele_dtype:
             if dim > 3:
@@ -580,8 +584,7 @@ class AutoPadder(Padder):
                         array[i, :len(content_i)] = content_i
                 elif dim == 2:
                     max_len = max(map(len, contents))
-                    max_word_len = max([max([len(content_ii) for content_ii in content_i]) for
-                                        content_i in contents])
+                    max_word_len = max([max([len(content_ii) for content_ii in content_i]) for content_i in contents])
                     array = np.full((len(contents), max_len, max_word_len), self.pad_val, dtype=field_ele_dtype)
                     for i, content_i in enumerate(contents):
                         for j, content_ii in enumerate(content_i):
@@ -604,9 +607,9 @@ class AutoPadder(Padder):
                         tensor[i, :len(content_i)] = content_i.clone().detach()
                 elif dim == 2:
                     max_len = max(map(len, contents))
-                    max_word_len = max([max([len(content_ii) for content_ii in content_i]) for
-                                        content_i in contents])
-                    tensor = torch.full((len(contents), max_len, max_word_len), fill_value=self.pad_val,
+                    max_word_len = max([max([len(content_ii) for content_ii in content_i]) for content_i in contents])
+                    tensor = torch.full((len(contents), max_len, max_word_len),
+                                        fill_value=self.pad_val,
                                         dtype=field_ele_dtype)
                     for i, content_i in enumerate(contents):
                         for j, content_ii in enumerate(content_i):
@@ -618,7 +621,8 @@ class AutoPadder(Padder):
                             f"Field:{field_name} has 3 dimensions, every sample should have the same shape.")
                     shape = shapes.pop()
                     if len(shape) == 3:
-                        tensor = torch.full([len(contents)] + list(shape), fill_value=self.pad_val,
+                        tensor = torch.full([len(contents)] + list(shape),
+                                            fill_value=self.pad_val,
                                             dtype=field_ele_dtype)
                         for i, content_i in enumerate(contents):
                             tensor[i] = content_i.clone().detach().to(field_ele_dtype)
@@ -653,7 +657,6 @@ class EngChar2DPadder(Padder):
         dataset.set_padder('chars', padder)  # chars这个field的设置为了EnChar2DPadder
 
     """
-    
     def __init__(self, pad_val=0, pad_length=0):
         r"""
         :param pad_val: int, pad的位置使用该index
@@ -661,9 +664,9 @@ class EngChar2DPadder(Padder):
             都pad或截取到该长度.
         """
         super().__init__(pad_val=pad_val)
-        
+
         self.pad_length = pad_length
-    
+
     def __call__(self, contents, field_name, field_ele_dtype, dim):
         r"""
         期望输入类似于
@@ -680,8 +683,7 @@ class EngChar2DPadder(Padder):
         """
         if field_ele_dtype not in (np.int64, np.float64, int, float):
             raise TypeError('dtype of Field:{} should be np.int64 or np.float64 to do 2D padding, get {}.'.format(
-                field_name, field_ele_dtype
-            ))
+                field_name, field_ele_dtype))
         assert dim == 2, f"Field:{field_name} has {dim}, EngChar2DPadder only supports input with 2 dimensions."
         if self.pad_length < 1:
             max_char_length = max([max(len(char_lst) for char_lst in word_lst) for word_lst in contents])
@@ -690,12 +692,35 @@ class EngChar2DPadder(Padder):
         max_sent_length = max(len(word_lst) for word_lst in contents)
         batch_size = len(contents)
         dtype = type(contents[0][0][0])
-        
-        padded_array = np.full((batch_size, max_sent_length, max_char_length), fill_value=self.pad_val,
-                               dtype=dtype)
+
+        padded_array = np.full((batch_size, max_sent_length, max_char_length), fill_value=self.pad_val, dtype=dtype)
         for b_idx, word_lst in enumerate(contents):
             for c_idx, char_lst in enumerate(word_lst):
                 chars = char_lst[:max_char_length]
                 padded_array[b_idx, c_idx, :len(chars)] = chars
-        
+
+        return padded_array
+
+
+class SentFeat2DPadder(Padder):
+    def __init__(self, pad_val=0):
+        super().__init__(pad_val=pad_val)
+
+    def __call__(self, contents, field_name, field_ele_dtype, dim: int):
+        r"""
+        传入的是List内容。假设有以下的DataSet。
+
+        :param List[Any] contents: 传入的element是inplace的，即直接修改element可能导致数据变化，建议inplace修改之前
+            deepcopy一份。
+        :param str, field_name: field的名称。
+        :param np.int64,np.float64,np.str,None, field_ele_dtype: 该field的内层元素的类型。如果该field的ignore_type为True，
+            该这个值为None。
+        :param dim: 这个field的维度。当ignore_type为True时，该值为None
+        :return: np.array([padded_element])
+        """
+        assert dim == 2, f"Field:{field_name} has {dim}, SentFeat2DPadder only supports input with 2 dimensions."
+        batch_size, max_len, dtype = len(contents), max(c.shape[0] for c in contents), type(contents[0][0][0])
+        padded_array = np.full((batch_size, max_len, max_len), fill_value=self.pad_val, dtype=dtype)
+        for b_idx, matrix in enumerate(contents):
+            padded_array[b_idx, :matrix.shape[0], :matrix.shape[1]] = matrix
         return padded_array
