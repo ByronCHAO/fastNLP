@@ -3,10 +3,7 @@ r"""
 词的index而不需要使用词语中的char的index来获取表达。
 """
 
-__all__ = [
-    "CNNCharEmbedding",
-    "LSTMCharEmbedding"
-]
+__all__ = ["CNNCharEmbedding", "LSTMCharEmbedding"]
 
 from typing import List
 
@@ -41,11 +38,21 @@ class CNNCharEmbedding(TokenEmbedding):
         >>> # torch.Size([1, 5，50])
 
     """
-    
-    def __init__(self, vocab: Vocabulary, embed_size: int = 50, char_emb_size: int = 50, word_dropout: float = 0,
-                 dropout: float = 0, filter_nums: List[int] = (40, 30, 20), kernel_sizes: List[int] = (5, 3, 1),
-                 pool_method: str = 'max', activation='relu', min_char_freq: int = 2, pre_train_char_embed: str = None,
-                 requires_grad:bool=True, include_word_start_end:bool=True, linear:bool=True):
+    def __init__(self,
+                 vocab: Vocabulary,
+                 embed_size: int = 50,
+                 char_emb_size: int = 50,
+                 word_dropout: float = 0,
+                 dropout: float = 0,
+                 filter_nums: List[int] = (40, 30, 20),
+                 kernel_sizes: List[int] = (5, 3, 1),
+                 pool_method: str = 'max',
+                 activation='relu',
+                 min_char_freq: int = 2,
+                 pre_train_char_embed: str = None,
+                 requires_grad: bool = True,
+                 include_word_start_end: bool = True,
+                 linear: bool = True):
         r"""
         
         :param vocab: 词表
@@ -67,10 +74,10 @@ class CNNCharEmbedding(TokenEmbedding):
 
         """
         super(CNNCharEmbedding, self).__init__(vocab, word_dropout=word_dropout, dropout=dropout)
-        
-        for kernel in kernel_sizes:
-            assert kernel % 2 == 1, "Only odd kernel is allowed."
-        
+
+        # for kernel in kernel_sizes:
+        #     assert kernel % 2 == 1, "Only odd kernel is allowed."
+
         assert pool_method in ('max', 'avg')
         self.pool_method = pool_method
         # activation function
@@ -81,17 +88,20 @@ class CNNCharEmbedding(TokenEmbedding):
                 self.activation = F.sigmoid
             elif activation.lower() == 'tanh':
                 self.activation = F.tanh
+            elif activation.lower() == 'leakyrelu':
+                self.activation = F.leaky_relu
         elif activation is None:
             self.activation = lambda x: x
         elif callable(activation):
             self.activation = activation
         else:
             raise Exception(
-                "Undefined activation function: choose from: [relu, tanh, sigmoid, or a callable function]")
-        
+                "Undefined activation function: choose from: [relu, leakyrelu, tanh, sigmoid, or a callable function]")
+
         logger.info("Start constructing character vocabulary.")
         # 建立char的词表
-        self.char_vocab = _construct_char_vocab_from_vocab(vocab, min_freq=min_char_freq,
+        self.char_vocab = _construct_char_vocab_from_vocab(vocab,
+                                                           min_freq=min_char_freq,
                                                            include_word_start_end=include_word_start_end)
         self.char_pad_index = self.char_vocab.padding_idx
         logger.info(f"In total, there are {len(self.char_vocab)} distinct characters.")
@@ -99,8 +109,8 @@ class CNNCharEmbedding(TokenEmbedding):
         max_word_len = max(map(lambda x: len(x[0]), vocab))
         if include_word_start_end:
             max_word_len += 2
-        self.register_buffer('words_to_chars_embedding', torch.full((len(vocab), max_word_len),
-                                                                fill_value=self.char_pad_index, dtype=torch.long))
+        self.register_buffer('words_to_chars_embedding',
+                             torch.full((len(vocab), max_word_len), fill_value=self.char_pad_index, dtype=torch.long))
         self.register_buffer('word_lengths', torch.zeros(len(vocab)).long())
         for word, index in vocab:
             # if index!=vocab.padding_idx:  # 如果是pad的话，直接就为pad_value了。修改为不区分pad, 这样所有的<pad>也是同一个embed
@@ -114,11 +124,14 @@ class CNNCharEmbedding(TokenEmbedding):
             self.char_embedding = StaticEmbedding(self.char_vocab, model_dir_or_name=pre_train_char_embed)
         else:
             self.char_embedding = get_embeddings((len(self.char_vocab), char_emb_size))
-        
-        self.convs = nn.ModuleList([nn.Conv1d(
-            self.char_embedding.embedding_dim, filter_nums[i], kernel_size=kernel_sizes[i], bias=True,
-            padding=kernel_sizes[i] // 2)
-            for i in range(len(kernel_sizes))])
+
+        self.convs = nn.ModuleList([
+            nn.Conv1d(self.char_embedding.embedding_dim,
+                      filter_nums[i],
+                      kernel_size=kernel_sizes[i],
+                      bias=True,
+                      padding=kernel_sizes[i] // 2) for i in range(len(kernel_sizes))
+        ])
         self._embed_size = embed_size
         self.use_linear = linear
         if linear:
@@ -146,8 +159,12 @@ class CNNCharEmbedding(TokenEmbedding):
         chars = self.dropout(chars)
         reshaped_chars = chars.reshape(batch_size * max_len, max_word_len, -1)
         reshaped_chars = reshaped_chars.transpose(1, 2)  # B' x E x M
-        conv_chars = [conv(reshaped_chars).transpose(1, 2).reshape(batch_size, max_len, max_word_len, -1)
-                      for conv in self.convs]
+        conv_chars = []
+        for conv in self.convs:
+            conv_char = conv(reshaped_chars).transpose(1, 2).reshape(batch_size, max_len, -1, conv.out_channels)
+            if conv_char.shape[2] > max_word_len:
+                conv_char = conv_char[:, :, :max_word_len, :]
+            conv_chars.append(conv_char)
         conv_chars = torch.cat(conv_chars, dim=-1).contiguous()  # B x max_len x max_word_len x sum(filters)
         conv_chars = self.activation(conv_chars)
         if self.pool_method == 'max':
@@ -178,11 +195,21 @@ class LSTMCharEmbedding(TokenEmbedding):
         >>> # torch.Size([1, 5，50])
 
     """
-    
-    def __init__(self, vocab: Vocabulary, embed_size: int = 50, char_emb_size: int = 50, word_dropout: float = 0,
-                 dropout: float = 0, hidden_size=50, pool_method: str = 'max', activation='relu',
-                 min_char_freq: int = 2, bidirectional=True, pre_train_char_embed: str = None,
-                 requires_grad:bool=True, include_word_start_end:bool=True, linear:bool=True):
+    def __init__(self,
+                 vocab: Vocabulary,
+                 embed_size: int = 50,
+                 char_emb_size: int = 50,
+                 word_dropout: float = 0,
+                 dropout: float = 0,
+                 hidden_size=50,
+                 pool_method: str = 'max',
+                 activation='relu',
+                 min_char_freq: int = 2,
+                 bidirectional=True,
+                 pre_train_char_embed: str = None,
+                 requires_grad: bool = True,
+                 include_word_start_end: bool = True,
+                 linear: bool = True):
         r"""
         
         :param vocab: 词表
@@ -203,9 +230,9 @@ class LSTMCharEmbedding(TokenEmbedding):
         :param no_linear: 是否在最后添加一个linear layer。如果False，sum(filter_nums)应当等于embed_size。默认值为True.
         """
         super(LSTMCharEmbedding, self).__init__(vocab, word_dropout=word_dropout, dropout=dropout)
-        
+
         assert hidden_size % 2 == 0, "Only even kernel is allowed."
-        
+
         assert pool_method in ('max', 'avg')
         self.pool_method = pool_method
         # activation function
@@ -221,12 +248,12 @@ class LSTMCharEmbedding(TokenEmbedding):
         elif callable(activation):
             self.activation = activation
         else:
-            raise Exception(
-                "Undefined activation function: choose from: [relu, tanh, sigmoid, or a callable function]")
-        
+            raise Exception("Undefined activation function: choose from: [relu, tanh, sigmoid, or a callable function]")
+
         logger.info("Start constructing character vocabulary.")
         # 建立char的词表
-        self.char_vocab = _construct_char_vocab_from_vocab(vocab, min_freq=min_char_freq,
+        self.char_vocab = _construct_char_vocab_from_vocab(vocab,
+                                                           min_freq=min_char_freq,
                                                            include_word_start_end=include_word_start_end)
         self.char_pad_index = self.char_vocab.padding_idx
         logger.info(f"In total, there are {len(self.char_vocab)} distinct characters.")
@@ -234,8 +261,8 @@ class LSTMCharEmbedding(TokenEmbedding):
         max_word_len = max(map(lambda x: len(x[0]), vocab))
         if include_word_start_end:
             max_word_len += 2
-        self.register_buffer('words_to_chars_embedding', torch.full((len(vocab), max_word_len),
-                                                                fill_value=self.char_pad_index, dtype=torch.long))
+        self.register_buffer('words_to_chars_embedding',
+                             torch.full((len(vocab), max_word_len), fill_value=self.char_pad_index, dtype=torch.long))
         self.register_buffer('word_lengths', torch.zeros(len(vocab)).long())
         for word, index in vocab:
             # if index!=vocab.padding_idx:  # 如果是pad的话，直接就为pad_value了. 修改为不区分pad与否
@@ -248,19 +275,19 @@ class LSTMCharEmbedding(TokenEmbedding):
             self.char_embedding = StaticEmbedding(self.char_vocab, pre_train_char_embed)
         else:
             self.char_embedding = get_embeddings((len(self.char_vocab), char_emb_size))
-        
+
         self.use_linear = linear
         if linear:
             self.fc = nn.Linear(hidden_size, embed_size)
         else:
             assert hidden_size == embed_size, "Invalid embed_size because you set linear=False."
         hidden_size = hidden_size // 2 if bidirectional else hidden_size
-        
+
         self.lstm = LSTM(self.char_embedding.embedding_dim, hidden_size, bidirectional=bidirectional, batch_first=True)
         self._embed_size = embed_size
         self.bidirectional = bidirectional
         self.requires_grad = requires_grad
-    
+
     def forward(self, words):
         r"""
         输入words的index后，生成对应的words的表示。
@@ -282,7 +309,7 @@ class LSTMCharEmbedding(TokenEmbedding):
         char_seq_len = chars_masks.eq(False).sum(dim=-1).reshape(batch_size * max_len)
         lstm_chars = self.lstm(reshaped_chars, char_seq_len)[0].reshape(batch_size, max_len, max_word_len, -1)
         # B x M x M x H
-        
+
         lstm_chars = self.activation(lstm_chars)
         if self.pool_method == 'max':
             lstm_chars = lstm_chars.masked_fill(chars_masks.unsqueeze(-1), float('-inf'))
@@ -290,8 +317,8 @@ class LSTMCharEmbedding(TokenEmbedding):
         else:
             lstm_chars = lstm_chars.masked_fill(chars_masks.unsqueeze(-1), 0)
             chars = torch.sum(lstm_chars, dim=-2) / chars_masks.eq(False).sum(dim=-1, keepdim=True).float()
-        
+
         if self.use_linear:
             chars = self.fc(chars)
-        
+
         return self.dropout(chars)
