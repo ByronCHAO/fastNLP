@@ -52,7 +52,8 @@ class CNNCharEmbedding(TokenEmbedding):
                  pre_train_char_embed: str = None,
                  requires_grad: bool = True,
                  include_word_start_end: bool = True,
-                 linear: bool = True):
+                 linear: bool = True,
+                 dropout_on: str = 'both'):
         r"""
         
         :param vocab: 词表
@@ -71,7 +72,7 @@ class CNNCharEmbedding(TokenEmbedding):
         :param requires_grad: 是否更新权重
         :param include_word_start_end: 是否在每个word开始的character前和结束的character增加特殊标示符号；
         :param no_linear: 是否在最后添加一个linear layer。如果False，sum(filter_nums)应当等于embed_size。默认值为True.
-
+        :param dropout_on: dropout应用在何处，both emb+conv, pre emb, post conv.
         """
         super(CNNCharEmbedding, self).__init__(vocab, word_dropout=word_dropout, dropout=dropout)
 
@@ -138,6 +139,8 @@ class CNNCharEmbedding(TokenEmbedding):
             self.fc = nn.Linear(sum(filter_nums), embed_size)
         else:
             assert sum(filter_nums) == embed_size, "Invalid embed_size because you set linear=False."
+        assert dropout_on in ('both', 'pre', 'post')
+        self.dropout_on = (dropout_on in ('both', 'pre'), dropout_on in ('both', 'post'))
         self.requires_grad = requires_grad
 
     def forward(self, words):
@@ -156,7 +159,8 @@ class CNNCharEmbedding(TokenEmbedding):
         # 为1的地方为mask
         chars_masks = chars.eq(self.char_pad_index)  # batch_size x max_len x max_word_len 如果为0, 说明是padding的位置了
         chars = self.char_embedding(chars)  # batch_size x max_len x max_word_len x embed_size
-        chars = self.dropout(chars)
+        if self.dropout_on[0]:
+            chars = self.dropout(chars)
         reshaped_chars = chars.reshape(batch_size * max_len, max_word_len, -1)
         reshaped_chars = reshaped_chars.transpose(1, 2)  # B' x E x M
         conv_chars = []
@@ -175,7 +179,7 @@ class CNNCharEmbedding(TokenEmbedding):
             chars = torch.sum(conv_chars, dim=-2) / chars_masks.eq(False).sum(dim=-1, keepdim=True).float()
         if self.use_linear:
             chars = self.fc(chars)
-        return self.dropout(chars)
+        return self.dropout(chars) if self.dropout_on[1] else chars
 
 
 class LSTMCharEmbedding(TokenEmbedding):
