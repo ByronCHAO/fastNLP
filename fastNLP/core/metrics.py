@@ -3,11 +3,7 @@ metrics 模块实现了 fastNLP 所需的各种常用衡量指标，一般做为
 
 """
 __all__ = [
-    "MetricBase",
-    "AccuracyMetric",
-    "SpanFPreRecMetric",
-    "CMRC2018Metric",
-    "ClassifyFPreRecMetric",
+    "MetricBase", "AccuracyMetric", "SpanFPreRecMetric", "CMRC2018Metric", "ClassifyFPreRecMetric",
     "ConfusionMatrixMetric"
 ]
 
@@ -121,7 +117,6 @@ class MetricBase(object):
     self.get_metric将统计当前的评价指标并返回评价结果, 返回值需要是一个dict, key是指标名称，value是指标的值
 
     """
-
     def __init__(self):
         self._param_map = {}  # key is param in function, value is input param.
         self._checked = False
@@ -269,8 +264,7 @@ class MetricBase(object):
                                   varargs=check_res.varargs)
 
             if check_res.missing or check_res.duplicated:
-                raise _CheckError(check_res=check_res,
-                                  func_signature=_get_func_signature(self.evaluate))
+                raise _CheckError(check_res=check_res, func_signature=_get_func_signature(self.evaluate))
             self._checked = True
         refined_args = _build_args(self.evaluate, **mapped_pred_dict, **mapped_target_dict)
 
@@ -308,13 +302,7 @@ class ConfusionMatrixMetric(MetricBase):
         }
         
     """
-    def __init__(self,
-                 vocab=None,
-                 pred=None,
-                 target=None,
-                 seq_len=None,
-                 print_ratio=False
-                ):
+    def __init__(self, vocab=None, pred=None, target=None, seq_len=None, print_ratio=False):
         r"""
         :param vocab: vocab词表类,要求有to_word()方法。
         :param pred: 参数映射表中 `pred` 的映射关系，None表示映射关系为 `pred` -> `pred`
@@ -340,23 +328,21 @@ class ConfusionMatrixMetric(MetricBase):
         :param torch.Tensor seq_len: 序列长度标记, 标记的形状可以是None, torch.Size([B]), 或者torch.Size([B]).
         """
         if not isinstance(pred, torch.Tensor):
-            raise TypeError(
-                f"`pred` in {_get_func_signature(self.evaluate)} must be torch.Tensor,"
-                f"got {type(pred)}.")
+            raise TypeError(f"`pred` in {_get_func_signature(self.evaluate)} must be torch.Tensor,"
+                            f"got {type(pred)}.")
         if not isinstance(target, torch.Tensor):
-            raise TypeError(
-                f"`target` in {_get_func_signature(self.evaluate)} must be torch.Tensor,"
-                f"got {type(target)}.")
+            raise TypeError(f"`target` in {_get_func_signature(self.evaluate)} must be torch.Tensor,"
+                            f"got {type(target)}.")
 
         if seq_len is not None and not isinstance(seq_len, torch.Tensor):
-            raise TypeError(
-                f"`seq_lens` in {_get_func_signature(self.evaluate)} must be torch.Tensor,"
-                f"got {type(seq_len)}.")
+            raise TypeError(f"`seq_lens` in {_get_func_signature(self.evaluate)} must be torch.Tensor,"
+                            f"got {type(seq_len)}.")
 
         if pred.dim() == target.dim():
-            if torch.numel(pred) !=torch.numel(target):
-                raise RuntimeError(f"In {_get_func_signature(self.evaluate)}, when pred have same dimensions with target, they should have same element numbers. while target have "
-                               f"element numbers:{torch.numel(target)}, pred have element numbers: {torch.numel(pred)}")
+            if torch.numel(pred) != torch.numel(target):
+                raise RuntimeError(
+                    f"In {_get_func_signature(self.evaluate)}, when pred have same dimensions with target, they should have same element numbers. while target have "
+                    f"element numbers:{torch.numel(target)}, pred have element numbers: {torch.numel(pred)}")
 
             pass
         elif pred.dim() == target.dim() + 1:
@@ -364,23 +350,20 @@ class ConfusionMatrixMetric(MetricBase):
             if seq_len is None and target.dim() > 1:
                 warnings.warn("You are not passing `seq_len` to exclude pad.")
         else:
-            raise RuntimeError(
-                f"In {_get_func_signature(self.evaluate)}, when pred have "
-                f"size:{pred.size()}, target should have size: {pred.size()} or "
-                f"{pred.size()[:-1]}, got {target.size()}.")
+            raise RuntimeError(f"In {_get_func_signature(self.evaluate)}, when pred have "
+                               f"size:{pred.size()}, target should have size: {pred.size()} or "
+                               f"{pred.size()[:-1]}, got {target.size()}.")
 
         target = target.to(pred)
         if seq_len is not None and target.dim() > 1:
-            for p, t, l in zip(pred.tolist(), target.tolist(),
-                               seq_len.tolist()):
+            for p, t, l in zip(pred.tolist(), target.tolist(), seq_len.tolist()):
                 l = int(l)
                 self.confusion_matrix.add_pred_target(p[:l], t[:l])
         elif target.dim() > 1:  #对于没有传入seq_len，但是又是高维的target，按全长输出
             for p, t in zip(pred.tolist(), target.tolist()):
                 self.confusion_matrix.add_pred_target(p, t)
         else:
-            self.confusion_matrix.add_pred_target(pred.tolist(),
-                                                  target.tolist())
+            self.confusion_matrix.add_pred_target(pred.tolist(), target.tolist())
 
     def get_metric(self, reset=True):
         r"""
@@ -394,14 +377,10 @@ class ConfusionMatrixMetric(MetricBase):
         return confusion
 
 
-
-
-
 class AccuracyMetric(MetricBase):
     r"""
     准确率Metric（其它的Metric参见 :mod:`fastNLP.core.metrics` ）
     """
-
     def __init__(self, pred=None, target=None, seq_len=None):
         r"""
         
@@ -448,9 +427,10 @@ class AccuracyMetric(MetricBase):
             masks = None
 
         if pred.dim() == target.dim():
-            if torch.numel(pred) !=torch.numel(target):
-                raise RuntimeError(f"In {_get_func_signature(self.evaluate)}, when pred have same dimensions with target, they should have same element numbers. while target have "
-                               f"element numbers:{torch.numel(target)}, pred have element numbers: {torch.numel(pred)}")
+            if torch.numel(pred) != torch.numel(target):
+                raise RuntimeError(
+                    f"In {_get_func_signature(self.evaluate)}, when pred have same dimensions with target, they should have same element numbers. while target have "
+                    f"element numbers:{torch.numel(target)}, pred have element numbers: {torch.numel(pred)}")
 
             pass
         elif pred.dim() == target.dim() + 1:
@@ -483,6 +463,7 @@ class AccuracyMetric(MetricBase):
             self.total = 0
         return evaluate_result
 
+
 class ClassifyFPreRecMetric(MetricBase):
     r"""
     分类问题计算FPR值的Metric（其它的Metric参见 :mod:`fastNLP.core.metrics` ）
@@ -508,9 +489,15 @@ class ClassifyFPreRecMetric(MetricBase):
         }
     
     """
-
-    def __init__(self, tag_vocab=None, pred=None, target=None, seq_len=None, ignore_labels=None,
-                 only_gross=True, f_type='micro', beta=1):
+    def __init__(self,
+                 tag_vocab=None,
+                 pred=None,
+                 target=None,
+                 seq_len=None,
+                 ignore_labels=None,
+                 only_gross=True,
+                 f_type='micro',
+                 beta=1):
         r"""
 
         :param tag_vocab: 标签的 :class:`~fastNLP.Vocabulary` . 默认值为None。若为None则使用数字来作为标签内容，否则使用vocab来作为标签内容。
@@ -522,7 +509,7 @@ class ClassifyFPreRecMetric(MetricBase):
         :param str f_type: `micro` 或 `macro` . `micro` :通过先计算总体的TP，FN和FP的数量，再计算f, precision, recall; `macro` : 分布计算每个类别的f, precision, recall，然后做平均（各类别f的权重相同）
         :param float beta: f_beta分数， :math:`f_{beta} = \frac{(1 + {beta}^{2})*(pre*rec)}{({beta}^{2}*pre + rec)}` . 常用为 `beta=0.5, 1, 2` 若为0.5则精确率的权重高于召回率；若为1，则两者平等；若为2，则召回率权重高于精确率。
         """
-        
+
         if tag_vocab:
             if not isinstance(tag_vocab, Vocabulary):
                 raise TypeError("tag_vocab can only be fastNLP.Vocabulary, not {}.".format(type(tag_vocab)))
@@ -532,7 +519,7 @@ class ClassifyFPreRecMetric(MetricBase):
         self.ignore_labels = ignore_labels
         self.f_type = f_type
         self.beta = beta
-        self.beta_square = self.beta ** 2
+        self.beta_square = self.beta**2
         self.only_gross = only_gross
 
         super().__init__()
@@ -576,9 +563,10 @@ class ClassifyFPreRecMetric(MetricBase):
         masks = masks.eq(1)
 
         if pred.dim() == target.dim():
-            if torch.numel(pred) !=torch.numel(target):
-                raise RuntimeError(f"In {_get_func_signature(self.evaluate)}, when pred have same dimensions with target, they should have same element numbers. while target have "
-                               f"element numbers:{torch.numel(target)}, pred have element numbers: {torch.numel(pred)}")
+            if torch.numel(pred) != torch.numel(target):
+                raise RuntimeError(
+                    f"In {_get_func_signature(self.evaluate)}, when pred have same dimensions with target, they should have same element numbers. while target have "
+                    f"element numbers:{torch.numel(target)}, pred have element numbers: {torch.numel(pred)}")
 
             pass
         elif pred.dim() == target.dim() + 1:
@@ -640,9 +628,7 @@ class ClassifyFPreRecMetric(MetricBase):
                 evaluate_result['rec'] = rec_sum / len(tags)
 
         if self.f_type == 'micro':
-            f, pre, rec = _compute_f_pre_rec(self.beta_square,
-                                             sum(self._tp.values()),
-                                             sum(self._fn.values()),
+            f, pre, rec = _compute_f_pre_rec(self.beta_square, sum(self._tp.values()), sum(self._fn.values()),
                                              sum(self._fp.values()))
             evaluate_result['f'] = f
             evaluate_result['pre'] = pre
@@ -683,10 +669,7 @@ def _bmes_tag_to_spans(tags, ignore_labels=None):
         else:
             spans.append((label, [idx, idx]))
         prev_bmes_tag = bmes_tag
-    return [(span[0], (span[1][0], span[1][1] + 1))
-            for span in spans
-            if span[0] not in ignore_labels
-            ]
+    return [(span[0], (span[1][0], span[1][1] + 1)) for span in spans if span[0] not in ignore_labels]
 
 
 def _bmeso_tag_to_spans(tags, ignore_labels=None):
@@ -714,10 +697,7 @@ def _bmeso_tag_to_spans(tags, ignore_labels=None):
         else:
             spans.append((label, [idx, idx]))
         prev_bmes_tag = bmes_tag
-    return [(span[0], (span[1][0], span[1][1] + 1))
-            for span in spans
-            if span[0] not in ignore_labels
-            ]
+    return [(span[0], (span[1][0], span[1][1] + 1)) for span in spans if span[0] not in ignore_labels]
 
 
 def _bioes_tag_to_spans(tags, ignore_labels=None):
@@ -745,10 +725,7 @@ def _bioes_tag_to_spans(tags, ignore_labels=None):
         else:
             spans.append((label, [idx, idx]))
         prev_bioes_tag = bioes_tag
-    return [(span[0], (span[1][0], span[1][1] + 1))
-            for span in spans
-            if span[0] not in ignore_labels
-            ]
+    return [(span[0], (span[1][0], span[1][1] + 1)) for span in spans if span[0] not in ignore_labels]
 
 
 def _bio_tag_to_spans(tags, ignore_labels=None):
@@ -777,6 +754,70 @@ def _bio_tag_to_spans(tags, ignore_labels=None):
             spans.append((label, [idx, idx]))
         prev_bio_tag = bio_tag
     return [(span[0], (span[1][0], span[1][1] + 1)) for span in spans if span[0] not in ignore_labels]
+
+
+def _bioes_tag_to_spans_with_confidence(predict_tags, confidence, ignore_labels=None):
+    spans = []
+    current_span = []
+    min_score = -1
+    tags = defaultdict(lambda: 0.0)
+
+    previous_tag_value: str = "O"
+    for i, (tag_value, score) in enumerate(zip(predict_tags, confidence)):
+
+        # non-set tags are OUT tags
+        if tag_value == "" or tag_value == "O" or tag_value == "_":
+            tag_value = "O-"
+
+        # anything that is not a BIOES tag is a SINGLE tag
+        if tag_value[0:2] not in ["B-", "I-", "O-", "E-", "S-"]:
+            tag_value = "S-" + tag_value
+
+        # anything that is not OUT is IN
+        in_span = False
+        if tag_value[0:2] not in ["O-"]:
+            in_span = True
+
+        # single and begin tags start a new span
+        starts_new_span = False
+        if tag_value[0:2] in ["B-", "S-"]:
+            starts_new_span = True
+
+        if (
+                previous_tag_value[0:2] in ["S-"]
+                and previous_tag_value[2:] != tag_value[2:]
+                and in_span
+        ):
+            starts_new_span = True
+
+        if (starts_new_span or not in_span) and len(current_span) > 0:
+            scores = [t[0] for t in current_span]
+            span_score = sum(scores) / len(scores)
+            if span_score > min_score:
+                this_tag = sorted(tags.items(), key=lambda k_v: k_v[1], reverse=True)[0][0]
+                span = (this_tag, (current_span[0][1], current_span[-1][1]+1))
+                spans.append(span)
+
+            current_span = []
+            tags = defaultdict(lambda: 0.0)
+
+        if in_span:
+            current_span.append((score, i))
+            weight = 1.1 if starts_new_span else 1.0
+            tags[tag_value[2:]] += weight
+
+        # remember previous tag
+        previous_tag_value = tag_value
+
+    if len(current_span) > 0:
+        scores = [t[0] for t in current_span]
+        span_score = sum(scores) / len(scores)
+        if span_score > min_score:
+            this_tag = sorted(tags.items(), key=lambda k_v: k_v[1], reverse=True)[0][0]
+            span = (this_tag, (current_span[0][1], current_span[-1][1]+1))
+            spans.append(span)
+
+    return spans
 
 
 def _get_encoding_type_from_tag_vocab(tag_vocab: Union[Vocabulary, dict]) -> str:
@@ -871,9 +912,17 @@ class SpanFPreRecMetric(MetricBase):
             ...
         }
     """
-
-    def __init__(self, tag_vocab, pred=None, target=None, seq_len=None, encoding_type=None, ignore_labels=None,
-                 only_gross=True, f_type='micro', beta=1):
+    def __init__(self,
+                 tag_vocab,
+                 pred=None,
+                 target=None,
+                 seq_len=None,
+                 encoding_type=None,
+                 ignore_labels=None,
+                 only_gross=True,
+                 f_type='micro',
+                 beta=1,
+                 use_confidence=False):
         r"""
         
         :param tag_vocab: 标签的 :class:`~fastNLP.Vocabulary` 。支持的标签为"B"(没有label)；或"B-xxx"(xxx为某种label，比如POS中的NN)，
@@ -900,7 +949,10 @@ class SpanFPreRecMetric(MetricBase):
         else:
             self.encoding_type = _get_encoding_type_from_tag_vocab(tag_vocab)
 
-        if self.encoding_type == 'bmes':
+        self.use_confidence = use_confidence
+        if use_confidence:
+            self.tag_to_span_func = _bioes_tag_to_spans_with_confidence
+        elif self.encoding_type == 'bmes':
             self.tag_to_span_func = _bmes_tag_to_spans
         elif self.encoding_type == 'bio':
             self.tag_to_span_func = _bio_tag_to_spans
@@ -914,7 +966,7 @@ class SpanFPreRecMetric(MetricBase):
         self.ignore_labels = ignore_labels
         self.f_type = f_type
         self.beta = beta
-        self.beta_square = self.beta ** 2
+        self.beta_square = self.beta**2
         self.only_gross = only_gross
 
         super().__init__()
@@ -934,6 +986,10 @@ class SpanFPreRecMetric(MetricBase):
         :param seq_len: [batch] 文本长度标记
         :return:
         """
+        if self.use_confidence:
+            assert isinstance(pred, (list, tuple))
+            pred, confidence = pred
+            confidence = confidence.tolist()
         if not isinstance(pred, torch.Tensor):
             raise TypeError(f"`pred` in {_get_func_signature(self.evaluate)} must be torch.Tensor,"
                             f"got {type(pred)}.")
@@ -968,7 +1024,12 @@ class SpanFPreRecMetric(MetricBase):
             pred_str_tags = [self.tag_vocab.to_word(tag) for tag in pred_tags]
             gold_str_tags = [self.tag_vocab.to_word(tag) for tag in gold_tags]
 
-            pred_spans = self.tag_to_span_func(pred_str_tags, ignore_labels=self.ignore_labels)
+            if self.use_confidence:
+                pred_spans = self.tag_to_span_func(pred_str_tags,
+                                                   confidence[i][:int(seq_len[i])],
+                                                   ignore_labels=self.ignore_labels)
+            else:
+                pred_spans = self.tag_to_span_func(pred_str_tags, ignore_labels=self.ignore_labels)
             gold_spans = self.tag_to_span_func(gold_str_tags, ignore_labels=self.ignore_labels)
 
             for span in pred_spans:
@@ -1012,10 +1073,8 @@ class SpanFPreRecMetric(MetricBase):
                 evaluate_result['rec'] = rec_sum / len(tags)
 
         if self.f_type == 'micro':
-            f, pre, rec = _compute_f_pre_rec(self.beta_square,
-                                             sum(self._true_positives.values()),
-                                             sum(self._false_negatives.values()),
-                                             sum(self._false_positives.values()))
+            f, pre, rec = _compute_f_pre_rec(self.beta_square, sum(self._true_positives.values()),
+                                             sum(self._false_negatives.values()), sum(self._false_positives.values()))
             evaluate_result['f'] = f
             evaluate_result['pre'] = pre
             evaluate_result['rec'] = rec
@@ -1104,9 +1163,7 @@ def _pred_topk(y_prob, k=1):
 
     """
     y_pred_topk = np.argsort(y_prob, axis=-1)[:, -1:-k - 1:-1]
-    x_axis_index = np.tile(
-        np.arange(len(y_prob))[:, np.newaxis],
-        (1, k))
+    x_axis_index = np.tile(np.arange(len(y_prob))[:, np.newaxis], (1, k))
     y_prob_topk = y_prob[x_axis_index, y_pred_topk]
     return y_pred_topk, y_prob_topk
 
@@ -1117,7 +1174,10 @@ class CMRC2018Metric(MetricBase):
     """
     def __init__(self, answers=None, raw_chars=None, context_len=None, pred_start=None, pred_end=None):
         super().__init__()
-        self._init_param_map(answers=answers, raw_chars=raw_chars, context_len=context_len, pred_start=pred_start,
+        self._init_param_map(answers=answers,
+                             raw_chars=raw_chars,
+                             context_len=context_len,
+                             pred_start=pred_start,
                              pred_end=pred_end)
         self.em = 0
         self.total = 0
@@ -1155,20 +1215,23 @@ class CMRC2018Metric(MetricBase):
             self.em += _calc_cmrc2018_em_score(answer, pred_an)
 
     def get_metric(self, reset=True):
-        eval_res = {'f1': round(self.f1 / self.total*100, 2), 'em': round(self.em / self.total*100, 2)}
+        eval_res = {'f1': round(self.f1 / self.total * 100, 2), 'em': round(self.em / self.total * 100, 2)}
         if reset:
             self.em = 0
             self.total = 0
             self.f1 = 0
         return eval_res
 
+
 # split Chinese
 def _cn_segmentation(in_str, rm_punc=False):
     in_str = str(in_str).lower().strip()
     segs_out = []
     temp_str = ""
-    sp_char = {'-', ':', '_', '*', '^', '/', '\\', '~', '`', '+', '=', '，', '。', '：', '？', '！', '“', '”', '；', '’', '《',
-               '》', '……', '·', '、', '「', '」', '（', '）', '－', '～', '『', '』'}
+    sp_char = {
+        '-', ':', '_', '*', '^', '/', '\\', '~', '`', '+', '=', '，', '。', '：', '？', '！', '“', '”', '；', '’', '《', '》',
+        '……', '·', '、', '「', '」', '（', '）', '－', '～', '『', '』'
+    }
     for char in in_str:
         if rm_punc and char in sp_char:
             continue
@@ -1192,9 +1255,10 @@ def _cn_segmentation(in_str, rm_punc=False):
 # remove punctuation
 def _remove_punctuation(in_str):
     in_str = str(in_str).lower().strip()
-    sp_char = ['-', ':', '_', '*', '^', '/', '\\', '~', '`', '+', '=',
-               '，', '。', '：', '？', '！', '“', '”', '；', '’', '《', '》', '……', '·', '、',
-               '「', '」', '（', '）', '－', '～', '『', '』']
+    sp_char = [
+        '-', ':', '_', '*', '^', '/', '\\', '~', '`', '+', '=', '，', '。', '：', '？', '！', '“', '”', '；', '’', '《', '》',
+        '……', '·', '、', '「', '」', '（', '）', '－', '～', '『', '』'
+    ]
     out_segs = []
     for char in in_str:
         if char in sp_char:
