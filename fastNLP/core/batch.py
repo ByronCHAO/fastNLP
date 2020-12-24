@@ -21,6 +21,11 @@ from .dataset import DataSet
 from .sampler import SequentialSampler, Sampler
 from ._logger import logger
 
+try:
+    from flair.data import Sentence
+    flair_enabled = True
+except:
+    flair_enabled = False
 
 _python_is_exit = False
 
@@ -38,7 +43,10 @@ def _pad(batch_dict, dataset, as_numpy):
     for n, vlist in batch_dict.items():
         f = dataset.field_arrays[n]
         if f.padder is None:
-            result[n] = np.array(vlist)
+            if flair_enabled and isinstance(vlist[0], Sentence):
+                result[n] = vlist
+            else:
+                result[n] = np.array(vlist)
         else:
             res = f.pad(vlist)
             if not as_numpy:
