@@ -783,11 +783,7 @@ def _bioes_tag_to_spans_with_confidence(predict_tags, confidence, ignore_labels=
         if tag_value[0:2] in ["B-", "S-"]:
             starts_new_span = True
 
-        if (
-                previous_tag_value[0:2] in ["S-"]
-                and previous_tag_value[2:] != tag_value[2:]
-                and in_span
-        ):
+        if (previous_tag_value[0:2] in ["S-"] and previous_tag_value[2:] != tag_value[2:] and in_span):
             starts_new_span = True
 
         if (starts_new_span or not in_span) and len(current_span) > 0:
@@ -795,7 +791,7 @@ def _bioes_tag_to_spans_with_confidence(predict_tags, confidence, ignore_labels=
             span_score = sum(scores) / len(scores)
             if span_score > min_score:
                 this_tag = sorted(tags.items(), key=lambda k_v: k_v[1], reverse=True)[0][0]
-                span = (this_tag, (current_span[0][1], current_span[-1][1]+1))
+                span = (this_tag, (current_span[0][1], current_span[-1][1] + 1))
                 spans.append(span)
 
             current_span = []
@@ -814,7 +810,7 @@ def _bioes_tag_to_spans_with_confidence(predict_tags, confidence, ignore_labels=
         span_score = sum(scores) / len(scores)
         if span_score > min_score:
             this_tag = sorted(tags.items(), key=lambda k_v: k_v[1], reverse=True)[0][0]
-            span = (this_tag, (current_span[0][1], current_span[-1][1]+1))
+            span = (this_tag, (current_span[0][1], current_span[-1][1] + 1))
             spans.append(span)
 
     return spans
@@ -950,9 +946,7 @@ class SpanFPreRecMetric(MetricBase):
             self.encoding_type = _get_encoding_type_from_tag_vocab(tag_vocab)
 
         self.use_confidence = use_confidence
-        if use_confidence:
-            self.tag_to_span_func = _bioes_tag_to_spans_with_confidence
-        elif self.encoding_type == 'bmes':
+        if self.encoding_type == 'bmes':
             self.tag_to_span_func = _bmes_tag_to_spans
         elif self.encoding_type == 'bio':
             self.tag_to_span_func = _bio_tag_to_spans
@@ -1025,9 +1019,9 @@ class SpanFPreRecMetric(MetricBase):
             gold_str_tags = [self.tag_vocab.to_word(tag) for tag in gold_tags]
 
             if self.use_confidence:
-                pred_spans = self.tag_to_span_func(pred_str_tags,
-                                                   confidence[i][:int(seq_len[i])],
-                                                   ignore_labels=self.ignore_labels)
+                pred_spans = _bioes_tag_to_spans_with_confidence(pred_str_tags,
+                                                                 confidence[i][:int(seq_len[i])],
+                                                                 ignore_labels=self.ignore_labels)
             else:
                 pred_spans = self.tag_to_span_func(pred_str_tags, ignore_labels=self.ignore_labels)
             gold_spans = self.tag_to_span_func(gold_str_tags, ignore_labels=self.ignore_labels)
