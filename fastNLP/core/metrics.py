@@ -791,7 +791,7 @@ def _bioes_tag_to_spans_with_confidence(predict_tags, confidence, ignore_labels=
             span_score = sum(scores) / len(scores)
             if span_score > min_score:
                 this_tag = sorted(tags.items(), key=lambda k_v: k_v[1], reverse=True)[0][0]
-                span = (this_tag, (current_span[0][1], current_span[-1][1] + 1))
+                span = (this_tag.lower(), (current_span[0][1], current_span[-1][1] + 1))
                 spans.append(span)
 
             current_span = []
@@ -810,10 +810,10 @@ def _bioes_tag_to_spans_with_confidence(predict_tags, confidence, ignore_labels=
         span_score = sum(scores) / len(scores)
         if span_score > min_score:
             this_tag = sorted(tags.items(), key=lambda k_v: k_v[1], reverse=True)[0][0]
-            span = (this_tag, (current_span[0][1], current_span[-1][1] + 1))
+            span = (this_tag.lower(), (current_span[0][1], current_span[-1][1] + 1))
             spans.append(span)
-
-    return spans
+    ignore_labels = set(ignore_labels) if ignore_labels else set()
+    return [(span[0], (span[1][0], span[1][1])) for span in spans if span[0] not in ignore_labels]
 
 
 def _get_encoding_type_from_tag_vocab(tag_vocab: Union[Vocabulary, dict]) -> str:
