@@ -24,7 +24,7 @@ def iob2(tags: List[str]) -> List[str]:
     for i, tag in enumerate(tags):
         if tag == "O":
             continue
-        split = tag.split("-")
+        split = tag.split("-", 1)
         if len(split) != 2 or split[0] not in ["I", "B"]:
             raise TypeError("The encoding schema is not a valid IOB type.")
         if split[0] == "B":
@@ -49,14 +49,14 @@ def iob2bioes(tags: List[str]) -> List[str]:
         if tag == 'O':
             new_tags.append(tag)
         else:
-            split = tag.split('-')[0]
+            split = tag.split('-', 1)[0]
             if split == 'B':
-                if i + 1 != len(tags) and tags[i + 1].split('-')[0] == 'I':
+                if i + 1 != len(tags) and tags[i + 1].split('-', 1)[0] == 'I':
                     new_tags.append(tag)
                 else:
                     new_tags.append(tag.replace('B-', 'S-'))
             elif split == 'I':
-                if i + 1 < len(tags) and tags[i + 1].split('-')[0] == 'I':
+                if i + 1 < len(tags) and tags[i + 1].split('-', 1)[0] == 'I':
                     new_tags.append(tag)
                 else:
                     new_tags.append(tag.replace('I-', 'E-'))

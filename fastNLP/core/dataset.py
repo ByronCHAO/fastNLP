@@ -358,6 +358,7 @@ __all__ = [
 
 import _pickle as pickle
 from copy import deepcopy
+from typing import Union
 
 import numpy as np
 from prettytable import PrettyTable
@@ -457,7 +458,7 @@ class DataSet(object):
 
         return inner_iter_func()
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Union[Instance, FieldArray, 'DataSet']:
         r"""给定int的index，返回一个Instance; 给定slice，返回包含这个slice内容的新的DataSet。
 
         :param idx: can be int or slice.
