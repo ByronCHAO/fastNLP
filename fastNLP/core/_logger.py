@@ -56,7 +56,7 @@ if tqdm is not None:
 else:
     class TqdmLoggingHandler(logging.StreamHandler):
         def __init__(self, level=logging.INFO):
-            super().__init__(sys.stdout)
+            super().__init__(sys.stderr)
             self.setLevel(level)
 
 
@@ -108,7 +108,7 @@ def _set_stdout_handler(logger, stdout='tqdm', level='INFO'):
     
     # Stream Handler
     if stdout == 'plain':
-        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler = logging.StreamHandler(sys.stderr)
     elif stdout == 'tqdm':
         stream_handler = TqdmLoggingHandler(level)
     else:
