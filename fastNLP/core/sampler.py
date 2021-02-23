@@ -227,7 +227,8 @@ class ConstantTokenNumSampler:
                  max_sentence=-1,
                  need_be_multiple_of=1,
                  num_bucket=-1,
-                 use_kmeans=False):
+                 use_kmeans=False,
+                 sort_in_batch=False):
         """
 
         :param List[int] seq_len: list[int], 是每个sample的长度。一般可以通过dataset.get_field('seq_len').content传入
@@ -236,6 +237,7 @@ class ConstantTokenNumSampler:
         :param int need_be_multiple_of: 生成的batch的instance的数量需要是几的倍数，在DataParallel场景下会用到
         :param int num_bucket: 将数据按长度拆分为num_bucket个bucket，batch中的sample尽量在bucket之中进行组合，这样可以减少padding。
         :param bool use_kmeans: 使用KMeans对长度聚类，生成bucket. 基于 https://github.com/yzhangcs/parser 中的实现
+        :param bool sort_in_batch: 使得一个batch内sentence长度降序.
         """
         assert (max_sentence != -1 and max_sentence >= need_be_multiple_of) or max_sentence < 1
         assert len(seq_len) >= num_bucket, "The number of samples should be larger than buckets."
@@ -244,6 +246,7 @@ class ConstantTokenNumSampler:
         self._max_sentence = max_sentence
         self.need_be_multiple_of = need_be_multiple_of
         self.use_kmeans = use_kmeans
+        self.sort_in_batch = sort_in_batch
         seq_len_indice = [(length, i) for i, length in enumerate(seq_len)]
         seq_len_indice.sort(key=lambda x: x[0])
         if num_bucket > 0:
@@ -284,6 +287,9 @@ class ConstantTokenNumSampler:
             for i in range(len(self.indice_in_buckets)):
                 for batch in np.array_split(np.random.permutation(len(self.indice_in_buckets[i])), self.chunks[i]):
                     batches.append([self.indice_in_buckets[i][j] for j in batch])
+            if self.sort_in_batch:
+                for batch in batches:
+                    batch.sort(lambda i: -self.seq_len[i])
             random.shuffle(batches)
             self.batches = batches
             return
@@ -322,6 +328,9 @@ class ConstantTokenNumSampler:
             if add_samples:
                 batches.append(add_samples)
         np.random.shuffle(batches)
+        if self.sort_in_batch:
+            for batch in batches:
+                batch.sort(lambda i: -self.seq_len[i])
         self.batches = batches
 
     @staticmethod
