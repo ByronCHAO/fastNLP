@@ -289,7 +289,7 @@ class ConstantTokenNumSampler:
                     batches.append([self.indice_in_buckets[i][j] for j in batch])
             if self.sort_in_batch:
                 for batch in batches:
-                    batch.sort(lambda i: -self.seq_len[i])
+                    batch.sort(key=lambda i: -self.seq_len[i])
             random.shuffle(batches)
             self.batches = batches
             return
@@ -330,7 +330,7 @@ class ConstantTokenNumSampler:
         np.random.shuffle(batches)
         if self.sort_in_batch:
             for batch in batches:
-                batch.sort(lambda i: -self.seq_len[i])
+                batch.sort(key=lambda i: -self.seq_len[i])
         self.batches = batches
 
     @staticmethod
