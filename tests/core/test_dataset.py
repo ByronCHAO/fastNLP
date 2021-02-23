@@ -136,6 +136,14 @@ class TestDataSetMethods(unittest.TestCase):
         ds.apply(lambda ins: (len(ins["x"]), "hahaha"), new_field_name="k", ignore_type=True)
         # expect no exception raised
 
+    def test_apply_tqdm(self):
+        import time
+        ds = DataSet({"x": [[1, 2, 3, 4]] * 40, "y": [[5, 6]] * 40})
+        def do_nothing(ins):
+            time.sleep(0.01)
+        ds.apply(do_nothing, use_tqdm=True)
+        ds.apply_field(do_nothing, field_name='x', use_tqdm=True)
+
     def test_apply_cannot_modify_instance(self):
         ds = DataSet({"x": [[1, 2, 3, 4]] * 40, "y": [[5, 6]] * 40})
         def modify_inplace(instance):
@@ -267,6 +275,57 @@ class TestDataSetMethods(unittest.TestCase):
         ds = DataSet()
         with self.assertRaises(RuntimeError) as RE:
             ds.add_field('test', [])
+
+    def test_concat(self):
+        """
+        测试两个dataset能否正确concat
+
+        """
+        ds1 = DataSet({"x": [[1, 2, 3, 4] for i in range(10)], "y": [[5, 6] for i in range(10)]})
+        ds2 = DataSet({"x": [[4,3,2,1] for i in range(10)], "y": [[6,5] for i in range(10)]})
+        ds3 = ds1.concat(ds2)
+
+        self.assertEqual(len(ds3), 20)
+
+        self.assertListEqual(ds1[9]['x'], [1, 2, 3, 4])
+        self.assertListEqual(ds1[10]['x'], [4,3,2,1])
+
+        ds2[0]['x'][0] = 100
+        self.assertEqual(ds3[10]['x'][0], 4)  # 不改变copy后的field了
+
+        ds3[10]['x'][0] = -100
+        self.assertEqual(ds2[0]['x'][0], 100)  # 不改变copy前的field了
+
+        # 测试inplace
+        ds1 = DataSet({"x": [[1, 2, 3, 4] for i in range(10)], "y": [[5, 6] for i in range(10)]})
+        ds2 = DataSet({"x": [[4, 3, 2, 1] for i in range(10)], "y": [[6, 5] for i in range(10)]})
+        ds3 = ds1.concat(ds2, inplace=True)
+
+        ds2[0]['x'][0] = 100
+        self.assertEqual(ds3[10]['x'][0], 4)  # 不改变copy后的field了
+
+        ds3[10]['x'][0] = -100
+        self.assertEqual(ds2[0]['x'][0], 100)  # 不改变copy前的field了
+
+        ds3[0]['x'][0] = 100
+        self.assertEqual(ds1[0]['x'][0], 100)  # 改变copy前的field了
+
+        # 测试mapping
+        ds1 = DataSet({"x": [[1, 2, 3, 4] for i in range(10)], "y": [[5, 6] for i in range(10)]})
+        ds2 = DataSet({"X": [[4, 3, 2, 1] for i in range(10)], "Y": [[6, 5] for i in range(10)]})
+        ds3 = ds1.concat(ds2, field_mapping={'X':'x', 'Y':'y'})
+        self.assertEqual(len(ds3), 20)
+
+        # 测试忽略掉多余的
+        ds1 = DataSet({"x": [[1, 2, 3, 4] for i in range(10)], "y": [[5, 6] for i in range(10)]})
+        ds2 = DataSet({"X": [[4, 3, 2, 1] for i in range(10)], "Y": [[6, 5] for i in range(10)], 'Z':[0]*10})
+        ds3 = ds1.concat(ds2, field_mapping={'X':'x', 'Y':'y'})
+
+        # 测试报错
+        ds1 = DataSet({"x": [[1, 2, 3, 4] for i in range(10)], "y": [[5, 6] for i in range(10)]})
+        ds2 = DataSet({"X": [[4, 3, 2, 1] for i in range(10)]})
+        with self.assertRaises(RuntimeError):
+            ds3 = ds1.concat(ds2, field_mapping={'X':'x'})
 
 
 class TestDataSetIter(unittest.TestCase):
