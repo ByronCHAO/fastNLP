@@ -196,9 +196,9 @@ class ConstTokenNumSampler(Sampler):
         self.batches = batches
 
     def __iter__(self):
+        self.get_new_order()
         for batch in self.batches:
             yield batch
-        self.get_new_order()
 
     def __len__(self):
         return len(self.batches)
@@ -380,9 +380,9 @@ class ConstantTokenNumSampler:
         return centroids, clusters
 
     def __iter__(self):
+        self.get_new_order()
         for batch in self.batches:
             yield batch
-        self.get_new_order()
 
     def __len__(self):
         return len(self.batches)
