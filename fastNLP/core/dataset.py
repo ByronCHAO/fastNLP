@@ -383,12 +383,12 @@ class ApplyResultException(Exception):
         super().__init__(msg)
         self.msg = msg
         self.index = index  # 标示在哪个数据遭遇到问题了
-    
+
+
 class DataSet(object):
     r"""
     fastNLP的数据容器，详细的使用方法见文档  :mod:`fastNLP.core.dataset`
     """
-
     def __init__(self, data=None):
         r"""
         
@@ -406,7 +406,10 @@ class DataSet(object):
                     self.add_field(field_name=key, fields=value)
             elif isinstance(data, list):
                 for ins in data:
-                    assert isinstance(ins, Instance), "Must be Instance type, not {}.".format(type(ins))
+                    assert isinstance(
+                        ins,
+                        Instance), "Must be Instance type, not {}.".format(
+                            type(ins))
                     self.append(ins)
 
             else:
@@ -441,9 +444,11 @@ class DataSet(object):
                 self.idx = idx
 
             def __getitem__(self, item):
-                assert item in self.dataset.field_arrays, "no such field:{} in Instance {}".format(item, self.dataset[
-                    self.idx])
-                assert self.idx < len(self.dataset.field_arrays[item]), "index:{} out of range".format(self.idx)
+                assert item in self.dataset.field_arrays, "no such field:{} in Instance {}".format(
+                    item, self.dataset[self.idx])
+                assert self.idx < len(self.dataset.field_arrays[item]
+                                      ), "index:{} out of range".format(
+                                          self.idx)
                 return self.dataset.field_arrays[item][self.idx]
 
             def __setitem__(self, key, value):
@@ -470,19 +475,29 @@ class DataSet(object):
                 If `idx` is slice, return a DataSet object.
         """
         if isinstance(idx, int):
-            return Instance(**{name: self.field_arrays[name][idx] for name in self.field_arrays})
+            return Instance(**{
+                name: self.field_arrays[name][idx]
+                for name in self.field_arrays
+            })
         elif isinstance(idx, slice):
-            if idx.start is not None and (idx.start >= len(self) or idx.start <= -len(self)):
-                raise RuntimeError(f"Start index {idx.start} out of range 0-{len(self) - 1}")
+            if idx.start is not None and (idx.start >= len(self)
+                                          or idx.start <= -len(self)):
+                raise RuntimeError(
+                    f"Start index {idx.start} out of range 0-{len(self) - 1}")
             data_set = DataSet()
             for field in self.field_arrays.values():
-                data_set.add_field(field_name=field.name, fields=field.content[idx], padder=field.padder,
-                                   is_input=field.is_input, is_target=field.is_target, ignore_type=field.ignore_type)
+                data_set.add_field(field_name=field.name,
+                                   fields=field.content[idx],
+                                   padder=field.padder,
+                                   is_input=field.is_input,
+                                   is_target=field.is_target,
+                                   ignore_type=field.ignore_type)
             data_set.collater = self.collater.copy_from(self.collater)
             return data_set
         elif isinstance(idx, str):
             if idx not in self:
-                raise KeyError("No such field called {} in DataSet.".format(idx))
+                raise KeyError(
+                    "No such field called {} in DataSet.".format(idx))
             return self.field_arrays[idx]
         elif isinstance(idx, list):
             dataset = DataSet()
@@ -495,7 +510,9 @@ class DataSet(object):
             dataset.collater = self.collater.copy_from(self.collater)
             return dataset
         else:
-            raise KeyError("Unrecognized type {} for idx in __getitem__ method".format(type(idx)))
+            raise KeyError(
+                "Unrecognized type {} for idx in __getitem__ method".format(
+                    type(idx)))
 
     def __getattr__(self, item):
         # Not tested. Don't use !!
@@ -543,7 +560,7 @@ class DataSet(object):
         int pad_value: 该field的pad的值，仅在该field为input或target时有意义
         :return:
         """
-        if len(self.field_arrays)>0:
+        if len(self.field_arrays) > 0:
             field_names = ['field_names']
             is_inputs = ['is_input']
             is_targets = ['is_target']
@@ -561,7 +578,8 @@ class DataSet(object):
                 else:
                     is_targets.append(False)
 
-                if (field_array.is_input or field_array.is_target) and field_array.padder is not None:
+                if (field_array.is_input or field_array.is_target
+                    ) and field_array.padder is not None:
                     pad_values.append(field_array.padder.get_pad_val())
                 else:
                     pad_values.append(' ')
@@ -590,12 +608,13 @@ class DataSet(object):
             # DataSet has no field yet
             for name, field in instance.fields.items():
                 # field = field.tolist() if isinstance(field, np.ndarray) else field
-                self.field_arrays[name] = FieldArray(name, [field])  # 第一个样本，必须用list包装起来
+                self.field_arrays[name] = FieldArray(
+                    name, [field])  # 第一个样本，必须用list包装起来
         else:
             if len(self.field_arrays) != len(instance.fields):
                 raise ValueError(
                     "DataSet object has {} fields, but attempt to append an Instance object with {} fields."
-                        .format(len(self.field_arrays), len(instance.fields)))
+                    .format(len(self.field_arrays), len(instance.fields)))
             for name, field in instance.fields.items():
                 assert name in self.field_arrays
                 try:
@@ -615,11 +634,18 @@ class DataSet(object):
         if not isinstance(fieldarray, FieldArray):
             raise TypeError("Only fastNLP.FieldArray supported.")
         if len(self) != len(fieldarray):
-            raise RuntimeError(f"The field to add must have the same size as dataset. "
-                               f"Dataset size {len(self)} != field size {len(fieldarray)}")
+            raise RuntimeError(
+                f"The field to add must have the same size as dataset. "
+                f"Dataset size {len(self)} != field size {len(fieldarray)}")
         self.field_arrays[field_name] = fieldarray
 
-    def add_field(self, field_name, fields, padder=AutoPadder(), is_input=False, is_target=False, ignore_type=False):
+    def add_field(self,
+                  field_name,
+                  fields,
+                  padder=AutoPadder(),
+                  is_input=False,
+                  is_target=False,
+                  ignore_type=False):
         r"""
         新增一个field
         
@@ -633,10 +659,15 @@ class DataSet(object):
 
         if len(self.field_arrays) != 0:
             if len(self) != len(fields):
-                raise RuntimeError(f"The field to add must have the same size as dataset. "
-                                   f"Dataset size {len(self)} != field size {len(fields)}")
-        self.field_arrays[field_name] = FieldArray(field_name, fields, is_target=is_target, is_input=is_input,
-                                                   padder=padder, ignore_type=ignore_type)
+                raise RuntimeError(
+                    f"The field to add must have the same size as dataset. "
+                    f"Dataset size {len(self)} != field size {len(fields)}")
+        self.field_arrays[field_name] = FieldArray(field_name,
+                                                   fields,
+                                                   is_target=is_target,
+                                                   is_input=is_input,
+                                                   padder=padder,
+                                                   ignore_type=ignore_type)
 
     def delete_instance(self, index):
         r"""
@@ -646,7 +677,9 @@ class DataSet(object):
         """
         assert isinstance(index, int), "Only integer supported."
         if len(self) <= index:
-            raise IndexError("{} is too large for as DataSet with {} instances.".format(index, len(self)))
+            raise IndexError(
+                "{} is too large for as DataSet with {} instances.".format(
+                    index, len(self)))
         if len(self) == 1:
             self.field_arrays.clear()
         else:
@@ -696,7 +729,8 @@ class DataSet(object):
         :return: :class:`~fastNLP.FieldArray`
         """
         if field_name not in self.field_arrays:
-            raise KeyError("Field name {} not found in DataSet".format(field_name))
+            raise KeyError(
+                "Field name {} not found in DataSet".format(field_name))
         return self.field_arrays[field_name]
 
     def get_all_fields(self):
@@ -731,13 +765,17 @@ class DataSet(object):
         :param str new_field_name: 修改为new_name。
         """
         if field_name in self.field_arrays:
-            self.field_arrays[new_field_name] = self.field_arrays.pop(field_name)
+            self.field_arrays[new_field_name] = self.field_arrays.pop(
+                field_name)
             self.field_arrays[new_field_name].name = new_field_name
         else:
             raise KeyError("DataSet has no field named {}.".format(field_name))
         return self
 
-    def set_target(self, *field_names, flag=True, use_1st_ins_infer_dim_type=True):
+    def set_target(self,
+                   *field_names,
+                   flag=True,
+                   use_1st_ins_infer_dim_type=True):
         r"""
         将field_names的field设置为target
 
@@ -755,7 +793,8 @@ class DataSet(object):
         for name in field_names:
             if name in self.field_arrays:
                 try:
-                    self.field_arrays[name]._use_1st_ins_infer_dim_type = bool(use_1st_ins_infer_dim_type)
+                    self.field_arrays[name]._use_1st_ins_infer_dim_type = bool(
+                        use_1st_ins_infer_dim_type)
                     self.field_arrays[name].is_target = flag
                 except SetInputOrTargetException as e:
                     logger.error(f"Cannot set field:{name} as target.")
@@ -764,7 +803,10 @@ class DataSet(object):
                 raise KeyError("{} is not a valid field name.".format(name))
         return self
 
-    def set_input(self, *field_names, flag=True, use_1st_ins_infer_dim_type=True):
+    def set_input(self,
+                  *field_names,
+                  flag=True,
+                  use_1st_ins_infer_dim_type=True):
         r"""
         将field_names的field设置为input::
 
@@ -779,10 +821,13 @@ class DataSet(object):
         for name in field_names:
             if name in self.field_arrays:
                 try:
-                    self.field_arrays[name]._use_1st_ins_infer_dim_type = bool(use_1st_ins_infer_dim_type)
+                    self.field_arrays[name]._use_1st_ins_infer_dim_type = bool(
+                        use_1st_ins_infer_dim_type)
                     self.field_arrays[name].is_input = flag
                 except SetInputOrTargetException as e:
-                    logger.error(f"Cannot set field:{name} as input, exception happens at the {e.index} value.")
+                    logger.error(
+                        f"Cannot set field:{name} as input, exception happens at the {e.index} value."
+                    )
                     raise e
             else:
                 raise KeyError("{} is not a valid field name.".format(name))
@@ -840,7 +885,9 @@ class DataSet(object):
 
         :return list: 里面的元素为被设置为input的field名称
         """
-        return [name for name, field in self.field_arrays.items() if field.is_input]
+        return [
+            name for name, field in self.field_arrays.items() if field.is_input
+        ]
 
     def get_target_name(self):
         r"""
@@ -848,7 +895,10 @@ class DataSet(object):
 
         :return list: 里面的元素为被设置为target的field名称
         """
-        return [name for name, field in self.field_arrays.items() if field.is_target]
+        return [
+            name for name, field in self.field_arrays.items()
+            if field.is_target
+        ]
 
     def apply_field(self, func, field_name, new_field_name=None, **kwargs):
         r"""
@@ -874,8 +924,12 @@ class DataSet(object):
         """
         assert len(self) != 0, "Null DataSet cannot use apply_field()."
         if not self.has_field(field_name=field_name):
-            raise KeyError("DataSet has no field named `{}`.".format(field_name))
-        return self.apply(func, new_field_name, _apply_field=field_name, **kwargs)
+            raise KeyError(
+                "DataSet has no field named `{}`.".format(field_name))
+        return self.apply(func,
+                          new_field_name,
+                          _apply_field=field_name,
+                          **kwargs)
 
     def apply_field_more(self, func, field_name, modify_fields=True, **kwargs):
         r"""
@@ -905,9 +959,13 @@ class DataSet(object):
         """
         assert len(self) != 0, "Null DataSet cannot use apply_field()."
         if not self.has_field(field_name=field_name):
-            raise KeyError("DataSet has no field named `{}`.".format(field_name))
-        return self.apply_more(func, modify_fields, _apply_field=field_name, **kwargs)
-    
+            raise KeyError(
+                "DataSet has no field named `{}`.".format(field_name))
+        return self.apply_more(func,
+                               modify_fields,
+                               _apply_field=field_name,
+                               **kwargs)
+
     def _add_apply_field(self, results, new_field_name, kwargs):
         r"""
         将results作为加入到新的field中，field名称为new_field_name
@@ -933,10 +991,16 @@ class DataSet(object):
                 extra_param['is_target'] = old_field.is_target
             if 'ignore_type' not in extra_param:
                 extra_param['ignore_type'] = old_field.ignore_type
-            self.add_field(field_name=new_field_name, fields=results, is_input=extra_param["is_input"],
-                           is_target=extra_param["is_target"], ignore_type=extra_param['ignore_type'])
+            self.add_field(field_name=new_field_name,
+                           fields=results,
+                           padder=old_field.padder,
+                           is_input=extra_param["is_input"],
+                           is_target=extra_param["is_target"],
+                           ignore_type=extra_param['ignore_type'])
         else:
-            self.add_field(field_name=new_field_name, fields=results, is_input=extra_param.get("is_input", None),
+            self.add_field(field_name=new_field_name,
+                           fields=results,
+                           is_input=extra_param.get("is_input", None),
                            is_target=extra_param.get("is_target", None),
                            ignore_type=extra_param.get("ignore_type", False))
 
@@ -975,36 +1039,43 @@ class DataSet(object):
         idx = -1
         try:
             results = {}
-            for idx, ins in tqdm(enumerate(self._inner_iter()), total=len(self), dynamic_ncols=True,
+            for idx, ins in tqdm(enumerate(self._inner_iter()),
+                                 total=len(self),
+                                 dynamic_ncols=True,
                                  desc=kwargs.get('tqdm_desc', ''),
-                                 leave=False, disable=not kwargs.get('use_tqdm', False)):
+                                 leave=False,
+                                 disable=not kwargs.get('use_tqdm', False)):
                 if "_apply_field" in kwargs:
                     res = func(ins[kwargs["_apply_field"]])
                 else:
                     res = func(ins)
                 if not isinstance(res, dict):
-                    raise ApplyResultException("The result of func is not a dict", idx)
+                    raise ApplyResultException(
+                        "The result of func is not a dict", idx)
                 if idx == 0:
                     for key, value in res.items():
                         results[key] = [value]
                 else:
                     for key, value in res.items():
                         if key not in results:
-                            raise ApplyResultException("apply results have different fields", idx)
+                            raise ApplyResultException(
+                                "apply results have different fields", idx)
                         results[key].append(value)
                     if len(res) != len(results):
-                        raise ApplyResultException("apply results have different fields", idx)
+                        raise ApplyResultException(
+                            "apply results have different fields", idx)
         except Exception as e:
             if idx != -1:
                 if isinstance(e, ApplyResultException):
                     logger.error(e.msg)
-                logger.error("Exception happens at the `{}`th instance.".format(idx))
+                logger.error(
+                    "Exception happens at the `{}`th instance.".format(idx))
             raise e
-    
+
         if modify_fields is True:
             for field, result in results.items():
                 self._add_apply_field(result, field, kwargs)
-    
+
         return results
 
     def apply(self, func, new_field_name=None, **kwargs):
@@ -1033,7 +1104,10 @@ class DataSet(object):
         idx = -1
         try:
             results = []
-            for idx, ins in tqdm(enumerate(self._inner_iter()), total=len(self), dynamic_ncols=True, leave=False,
+            for idx, ins in tqdm(enumerate(self._inner_iter()),
+                                 total=len(self),
+                                 dynamic_ncols=True,
+                                 leave=False,
                                  desc=kwargs.get('tqdm_desc', ''),
                                  disable=not kwargs.get('use_tqdm', False)):
                 if "_apply_field" in kwargs:
@@ -1042,7 +1116,8 @@ class DataSet(object):
                     results.append(func(ins))
         except BaseException as e:
             if idx != -1:
-                logger.error("Exception happens at the `{}`th instance.".format(idx))
+                logger.error(
+                    "Exception happens at the `{}`th instance.".format(idx))
             raise e
 
         if new_field_name is not None:
@@ -1076,7 +1151,9 @@ class DataSet(object):
         if inplace:
             results = [ins for ins in self._inner_iter() if not func(ins)]
             for name, old_field in self.field_arrays.items():
-                self.field_arrays[name].content = [ins[name] for ins in results]
+                self.field_arrays[name].content = [
+                    ins[name] for ins in results
+                ]
             return self
         else:
             results = [ins for ins in self if not func(ins)]
@@ -1096,7 +1173,8 @@ class DataSet(object):
         :param bool shuffle: 在split前是否shuffle一下
         :return: [ :class:`~fastNLP.读取后的DataSet` , :class:`~fastNLP.读取后的DataSet` ]
         """
-        assert len(self) > 1, f'DataSet with {len(self)} instance cannot be split.'
+        assert len(
+            self) > 1, f'DataSet with {len(self)} instance cannot be split.'
         assert isinstance(ratio, float)
         assert 0 < ratio < 1
         all_indices = [_ for _ in range(len(self))]
@@ -1116,7 +1194,8 @@ class DataSet(object):
         for idx in train_indices:
             train_set.append(self[idx])
         for field_name in self.field_arrays:
-            train_set.field_arrays[field_name].to(self.field_arrays[field_name])
+            train_set.field_arrays[field_name].to(
+                self.field_arrays[field_name])
             dev_set.field_arrays[field_name].to(self.field_arrays[field_name])
 
         train_set.collater.copy_from(self.collater)
@@ -1142,7 +1221,9 @@ class DataSet(object):
         """
         with open(path, 'rb') as f:
             d = pickle.load(f)
-            assert isinstance(d, DataSet), "The object is not DataSet, but {}.".format(type(d))
+            assert isinstance(
+                d,
+                DataSet), "The object is not DataSet, but {}.".format(type(d))
         return d
 
     def add_collate_fn(self, fn, name=None):
@@ -1192,13 +1273,17 @@ class DataSet(object):
         fns_in_other_dataset = dataset.get_field_names()
         reverse_field_mapping = {}
         if field_mapping is not None:
-            fns_in_other_dataset = [field_mapping.get(fn, fn) for fn in fns_in_other_dataset]
-            reverse_field_mapping = {v:k for k, v in field_mapping.items()}
+            fns_in_other_dataset = [
+                field_mapping.get(fn, fn) for fn in fns_in_other_dataset
+            ]
+            reverse_field_mapping = {v: k for k, v in field_mapping.items()}
         fns_in_other_dataset = set(fns_in_other_dataset)
         fn_not_seen = list(fns_in_this_dataset - fns_in_other_dataset)
 
         if fn_not_seen:
-            raise RuntimeError(f"The following fields are not provided in the dataset:{fn_not_seen}")
+            raise RuntimeError(
+                f"The following fields are not provided in the dataset:{fn_not_seen}"
+            )
 
         if inplace:
             ds = self
@@ -1206,6 +1291,9 @@ class DataSet(object):
             ds = deepcopy(self)
 
         for fn in fns_in_this_dataset:
-            ds.get_field(fn).content.extend(deepcopy(dataset.get_field(reverse_field_mapping.get(fn, fn)).content))
+            ds.get_field(fn).content.extend(
+                deepcopy(
+                    dataset.get_field(reverse_field_mapping.get(fn,
+                                                                fn)).content))
 
         return ds

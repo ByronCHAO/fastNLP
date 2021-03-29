@@ -718,6 +718,9 @@ class SentFeat2DPadder(Padder):
         :param dim: 这个field的维度。当ignore_type为True时，该值为None
         :return: np.array([padded_element])
         """
+        if not isinstance(contents[0], np.ndarray):
+            contents = [np.array(c) for c in contents]
+        
         assert dim == 2, f"Field:{field_name} has {dim}, SentFeat2DPadder only supports input with 2 dimensions."
         batch_size, max_len, dtype = len(contents), max(c.shape[0] for c in contents), type(contents[0][0][0])
         padded_array = np.full((batch_size, max_len, max_len), fill_value=self.pad_val, dtype=dtype)
