@@ -92,7 +92,7 @@ class Padder:
     .. py:function:: __call__(self, contents, field_name, field_ele_dtype):
     
     """
-    
+
     def __init__(self, pad_val=0, **kwargs):
         r"""
         
@@ -103,7 +103,7 @@ class Padder:
         :return: np.array([padded_element])
         """
         self.pad_val = pad_val
-    
+
     def set_pad_val(self, pad_val):
         self.pad_val = pad_val
 
@@ -176,10 +176,10 @@ class AutoPadder(Padder):
 
     3 其它情况不进行处理，返回一个np.array类型。
     """
-    
+
     def __init__(self, pad_val=0):
         super().__init__(pad_val=pad_val)
-    
+
     def __call__(self, contents, field_name, field_ele_dtype, dim):
         if field_ele_dtype:
             if dim > 3:
@@ -268,7 +268,7 @@ class EngChar2DPadder(Padder):
         dataset.set_padder('chars', padder)  # chars这个field的设置为了EnChar2DPadder
 
     """
-    
+
     def __init__(self, pad_val=0, pad_length=0):
         r"""
         :param pad_val: int, pad的位置使用该index
@@ -276,9 +276,9 @@ class EngChar2DPadder(Padder):
             都pad或截取到该长度.
         """
         super().__init__(pad_val=pad_val)
-        
+
         self.pad_length = pad_length
-    
+
     def __call__(self, contents, field_name, field_ele_dtype, dim):
         r"""
         期望输入类似于
@@ -305,14 +305,44 @@ class EngChar2DPadder(Padder):
         max_sent_length = max(len(word_lst) for word_lst in contents)
         batch_size = len(contents)
         dtype = type(contents[0][0][0])
-        
+
         padded_array = np.full((batch_size, max_sent_length, max_char_length), fill_value=self.pad_val,
                                dtype=dtype)
         for b_idx, word_lst in enumerate(contents):
             for c_idx, char_lst in enumerate(word_lst):
                 chars = char_lst[:max_char_length]
                 padded_array[b_idx, c_idx, :len(chars)] = chars
-        
+
+        return padded_array
+
+
+class SentFeat2DPadder(Padder):
+    def __init__(self, pad_val=0):
+        super().__init__(pad_val=pad_val)
+
+    def __call__(self, contents, field_name, field_ele_dtype, dim: int):
+        r"""
+        传入的是List内容。假设有以下的DataSet。
+
+        :param List[Any] contents: 传入的element是inplace的，即直接修改element可能导致数据变化，建议inplace修改之前
+            deepcopy一份。
+        :param str, field_name: field的名称。
+        :param np.int64,np.float64,np.str,None, field_ele_dtype: 该field的内层元素的类型。如果该field的ignore_type为True，
+            该这个值为None。
+        :param dim: 这个field的维度。当ignore_type为True时，该值为None
+        :return: np.array([padded_element])
+        """
+        if not isinstance(contents[0], np.ndarray):
+            contents = [np.array(c) for c in contents]
+
+        assert dim == 2, f"Field:{field_name} has {dim}, SentFeat2DPadder only supports input with 2 dimensions."
+        batch_size, max_len, dtype = len(contents), max(
+            c.shape[0] for c in contents), type(contents[0][0][0])
+        padded_array = np.full((batch_size, max_len, max_len),
+                               fill_value=self.pad_val,
+                               dtype=dtype)
+        for b_idx, matrix in enumerate(contents):
+            padded_array[b_idx, :matrix.shape[0], :matrix.shape[1]] = matrix
         return padded_array
 
 
