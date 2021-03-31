@@ -334,6 +334,7 @@ class SentFeat2DPadder(Padder):
         """
         if not isinstance(contents[0], np.ndarray):
             contents = [np.array(c) for c in contents]
+            dim = contents[0].dim
 
         assert dim == 2, f"Field:{field_name} has {dim}, SentFeat2DPadder only supports input with 2 dimensions."
         batch_size, max_len, dtype = len(contents), max(
