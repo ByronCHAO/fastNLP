@@ -3,10 +3,7 @@ r"""
     doc
 """
 
-__all__ = [
-    "BertEmbedding",
-    "BertWordPieceEncoder"
-]
+__all__ = ["BertEmbedding", "BertWordPieceEncoder"]
 
 import os
 import warnings
@@ -23,6 +20,7 @@ from ..core.vocabulary import Vocabulary
 from ..io.file_utils import PRETRAINED_BERT_MODEL_DIR
 from ..modules.encoder.bert import BertModel
 from ..modules.tokenizer import BertTokenizer
+from ..modules import ScalarMix
 
 # TODO 需要重新修改，使得encoder可以直接读取embedding的权重
 VOCAB_NAME = 'vocab.txt'
@@ -63,10 +61,20 @@ class BertEmbedding(ContextualEmbedding):
         >>> outputs.size()
         >>> # torch.Size([1, 5, 2304])
     """
-    
-    def __init__(self, vocab: Vocabulary, model_dir_or_name: str = 'en-base-uncased', layers: str = '-1',
-                 pool_method: str = 'first', word_dropout=0, dropout=0, include_cls_sep: bool = False,
-                 pooled_cls=True, requires_grad: bool = True, auto_truncate: bool = False, **kwargs):
+    def __init__(self,
+                 vocab: Vocabulary,
+                 model_dir_or_name: str = 'en-base-uncased',
+                 layers: str = '-1',
+                 pool_method: str = 'first',
+                 output_size: int = -1,
+                 word_dropout=0,
+                 dropout=0,
+                 include_cls_sep: bool = False,
+                 pooled_cls=True,
+                 requires_grad: bool = True,
+                 auto_truncate: bool = False,
+                 scalar_mix=False,
+                 **kwargs):
         r"""
         
         :param ~fastNLP.Vocabulary vocab: 词表
@@ -88,6 +96,7 @@ class BertEmbedding(ContextualEmbedding):
         :param bool auto_truncate: 当句子words拆分为word pieces长度超过bert最大允许长度(一般为512), 自动截掉拆分后的超过510个
             word pieces后的内容，并将第512个word piece置为[SEP]。超过长度的部分的encode结果直接全部置零。一般仅有只使用[CLS]
             来进行分类的任务将auto_truncate置为True。
+        :param bool scalar_mix: 使用scalar mix将多层合并为一层
         :param kwargs:
             int min_freq: 小于该次数的词会被unk代替, 默认为1
         """
@@ -112,13 +121,30 @@ class BertEmbedding(ContextualEmbedding):
 
         min_freq = kwargs.pop('min_freq', 1)
         self._min_freq = min_freq
-        self.model = _BertWordModel(model_dir_or_name=model_dir_or_name, vocab=vocab, layers=layers,
-                                    pool_method=pool_method, include_cls_sep=include_cls_sep,
-                                    pooled_cls=pooled_cls, min_freq=min_freq, auto_truncate=auto_truncate,
+        self.model = _BertWordModel(model_dir_or_name=model_dir_or_name,
+                                    vocab=vocab,
+                                    layers=layers,
+                                    pool_method=pool_method,
+                                    include_cls_sep=include_cls_sep,
+                                    pooled_cls=pooled_cls,
+                                    min_freq=min_freq,
+                                    auto_truncate=auto_truncate,
                                     **kwargs)
 
         self.requires_grad = requires_grad
         self._embed_size = len(self.model.layers) * self.model.encoder.hidden_size
+
+        if scalar_mix:
+            self.scalar_mix = ScalarMix(len(layers.split(',')))
+            self._embed_size = self.model.encoder.hidden_size
+        else:
+            self.scalar_mix = None
+
+        if output_size > 0:
+            self.projection = nn.Linear(self._embed_size, output_size, False)
+            self._embed_size = output_size
+        else:
+            self.projection = nn.Identity()
 
     def _delete_model_weights(self):
         del self.model
@@ -136,9 +162,12 @@ class BertEmbedding(ContextualEmbedding):
         if outputs is not None:
             return self.dropout(outputs)
         outputs = self.model(words)
-        outputs = torch.cat([*outputs], dim=-1)
+        if self.scalar_mix is None:
+            outputs = torch.cat([*outputs], dim=-1)
+        else:
+            outputs = self.scalar_mix(outputs)
 
-        return self.dropout(outputs)
+        return self.projection(self.dropout(outputs))
 
     def drop_word(self, words):
         r"""
@@ -153,10 +182,10 @@ class BertEmbedding(ContextualEmbedding):
                 mask = torch.bernoulli(mask).eq(1)  # dropout_word越大，越多位置为1
                 pad_mask = words.ne(self._word_pad_index)
                 mask = pad_mask.__and__(mask)  # pad的位置不为unk
-                if self._word_sep_index!=-100:
+                if self._word_sep_index != -100:
                     not_sep_mask = words.ne(self._word_sep_index)
                     mask = mask.__and__(not_sep_mask)
-                if self._word_cls_index!=-100:
+                if self._word_cls_index != -100:
                     not_cls_mask = words.ne(self._word_cls_index)
                     mask = mask.__and__(not_cls_mask)
                 words = words.masked_fill(mask, self._word_unk_index)
@@ -231,9 +260,14 @@ class BertWordPieceEncoder(nn.Module):
         multi-base-uncased: multilingual uncased
 
     """
-
-    def __init__(self, model_dir_or_name: str = 'en-base-uncased', layers: str = '-1', pooled_cls: bool = False,
-                 word_dropout=0, dropout=0, requires_grad: bool = True, **kwargs):
+    def __init__(self,
+                 model_dir_or_name: str = 'en-base-uncased',
+                 layers: str = '-1',
+                 pooled_cls: bool = False,
+                 word_dropout=0,
+                 dropout=0,
+                 requires_grad: bool = True,
+                 **kwargs):
         r"""
 
         :param str model_dir_or_name: 模型所在目录或者模型的名称。默认值为 ``en-base-uncased``
@@ -295,7 +329,7 @@ class BertWordPieceEncoder(nn.Module):
                 sep_mask = word_pieces.eq(self._sep_index)  # batch_size x max_len
                 sep_mask_cumsum = sep_mask.long().flip(dims=[-1]).cumsum(dim=-1).flip(dims=[-1])
                 token_type_ids = sep_mask_cumsum.fmod(2)
-                token_type_ids = token_type_ids[:, :1].__xor__(token_type_ids) # 如果开头是奇数，则需要flip一下结果，因为需要保证开头为0
+                token_type_ids = token_type_ids[:, :1].__xor__(token_type_ids)  # 如果开头是奇数，则需要flip一下结果，因为需要保证开头为0
 
         word_pieces = self.drop_word(word_pieces)
         outputs = self.model(word_pieces, token_type_ids)
@@ -494,7 +528,8 @@ class _BertWordModel(nn.Module):
                 token_type_ids = torch.zeros_like(word_pieces)
         # 2. 获取hidden的结果，根据word_pieces进行对应的pool计算
         # all_outputs: [batch_size x max_len x hidden_size, batch_size x max_len x hidden_size, ...]
-        bert_outputs, pooled_cls = self.encoder(word_pieces, token_type_ids=token_type_ids,
+        bert_outputs, pooled_cls = self.encoder(word_pieces,
+                                                token_type_ids=token_type_ids,
                                                 attention_mask=attn_masks,
                                                 output_all_encoded_layers=True)
         # output_layers = [self.layers]  # len(self.layers) x batch_size x real_word_piece_length x hidden_size
@@ -506,8 +541,7 @@ class _BertWordModel(nn.Module):
 
         else:
             s_shift = 0
-            outputs = bert_outputs[-1].new_zeros(len(self.layers), batch_size, max_word_len,
-                                                 bert_outputs[-1].size(-1))
+            outputs = bert_outputs[-1].new_zeros(len(self.layers), batch_size, max_word_len, bert_outputs[-1].size(-1))
         batch_word_pieces_cum_length = batch_word_pieces_length.new_zeros(batch_size, max_word_len + 1)
         batch_word_pieces_cum_length[:, 1:] = batch_word_pieces_length.cumsum(dim=-1)  # batch_size x max_len
 
@@ -516,7 +550,7 @@ class _BertWordModel(nn.Module):
             batch_word_pieces_cum_length.masked_fill_(batch_word_pieces_cum_length.ge(max_word_piece_length), 0)
             _batch_indexes = batch_indexes[:, None].expand((batch_size, batch_word_pieces_cum_length.size(1)))
         elif self.pool_method == 'last':
-            batch_word_pieces_cum_length = batch_word_pieces_cum_length[:, 1:seq_len.max()+1] - 1
+            batch_word_pieces_cum_length = batch_word_pieces_cum_length[:, 1:seq_len.max() + 1] - 1
             batch_word_pieces_cum_length.masked_fill_(batch_word_pieces_cum_length.ge(max_word_piece_length), 0)
             _batch_indexes = batch_indexes[:, None].expand((batch_size, batch_word_pieces_cum_length.size(1)))
 
@@ -524,8 +558,7 @@ class _BertWordModel(nn.Module):
             output_layer = bert_outputs[l]
             real_word_piece_length = output_layer.size(1) - 2
             if max_word_piece_length > real_word_piece_length:  # 如果实际上是截取出来的
-                paddings = output_layer.new_zeros(batch_size,
-                                                  max_word_piece_length - real_word_piece_length,
+                paddings = output_layer.new_zeros(batch_size, max_word_piece_length - real_word_piece_length,
                                                   output_layer.size(2))
                 output_layer = torch.cat((output_layer, paddings), dim=1).contiguous()
             # 从word_piece collapse到word的表示
@@ -533,12 +566,12 @@ class _BertWordModel(nn.Module):
             if self.pool_method == 'first':
                 tmp = truncate_output_layer[_batch_indexes, batch_word_pieces_cum_length]
                 tmp = tmp.masked_fill(word_mask[:, :batch_word_pieces_cum_length.size(1), None].eq(False), 0)
-                outputs[l_index, :, s_shift:batch_word_pieces_cum_length.size(1)+s_shift] = tmp
+                outputs[l_index, :, s_shift:batch_word_pieces_cum_length.size(1) + s_shift] = tmp
 
             elif self.pool_method == 'last':
                 tmp = truncate_output_layer[_batch_indexes, batch_word_pieces_cum_length]
                 tmp = tmp.masked_fill(word_mask[:, :batch_word_pieces_cum_length.size(1), None].eq(False), 0)
-                outputs[l_index, :, s_shift:batch_word_pieces_cum_length.size(1)+s_shift] = tmp
+                outputs[l_index, :, s_shift:batch_word_pieces_cum_length.size(1) + s_shift] = tmp
             elif self.pool_method == 'max':
                 for i in range(batch_size):
                     for j in range(seq_len[i]):
@@ -554,7 +587,8 @@ class _BertWordModel(nn.Module):
                     outputs[l_index, :, 0] = pooled_cls
                 else:
                     outputs[l_index, :, 0] = output_layer[:, 0]
-                outputs[l_index, batch_indexes, seq_len + s_shift] = output_layer[batch_indexes, word_pieces_lengths + s_shift]
+                outputs[l_index, batch_indexes, seq_len + s_shift] = output_layer[batch_indexes,
+                                                                                  word_pieces_lengths + s_shift]
 
         # 3. 最终的embedding结果
         return outputs
@@ -575,8 +609,7 @@ class _BertWordPieceModel(nn.Module):
     这个模块用于直接计算word_piece的结果.
 
     """
-
-    def __init__(self, model_dir_or_name: str, layers: str = '-1', pooled_cls: bool=False):
+    def __init__(self, model_dir_or_name: str, layers: str = '-1', pooled_cls: bool = False):
         super().__init__()
 
         self.tokenizer = BertTokenizer.from_pretrained(model_dir_or_name)
@@ -619,8 +652,7 @@ class _BertWordPieceModel(nn.Module):
 
         for index, dataset in enumerate(datasets):
             try:
-                dataset.apply_field(encode_func, field_name=field_name, new_field_name='word_pieces',
-                                    is_input=True)
+                dataset.apply_field(encode_func, field_name=field_name, new_field_name='word_pieces', is_input=True)
                 dataset.set_pad_val('word_pieces', self._wordpiece_pad_index)
             except Exception as e:
                 logger.error(f"Exception happens when processing the {index} dataset.")
@@ -636,13 +668,15 @@ class _BertWordPieceModel(nn.Module):
         batch_size, max_len = word_pieces.size()
 
         attn_masks = word_pieces.ne(self._wordpiece_pad_index)
-        bert_outputs, pooled_cls = self.encoder(word_pieces, token_type_ids=token_type_ids, attention_mask=attn_masks,
+        bert_outputs, pooled_cls = self.encoder(word_pieces,
+                                                token_type_ids=token_type_ids,
+                                                attention_mask=attn_masks,
                                                 output_all_encoded_layers=True)
         # output_layers = [self.layers]  # len(self.layers) x batch_size x max_word_piece_length x hidden_size
         outputs = bert_outputs[0].new_zeros((len(self.layers), batch_size, max_len, bert_outputs[0].size(-1)))
         for l_index, l in enumerate(self.layers):
             bert_output = bert_outputs[l]
-            if l in (len(bert_outputs)-1, -1) and self.pooled_cls:
+            if l in (len(bert_outputs) - 1, -1) and self.pooled_cls:
                 bert_output[:, 0] = pooled_cls
             outputs[l_index] = bert_output
         return outputs

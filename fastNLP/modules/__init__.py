@@ -72,7 +72,9 @@ __all__ = [
     "LSTMState",
     "State",
 
-    "SequenceGenerator"
+    "SequenceGenerator",
+
+    "ScalarMix"
 ]
 
 import sys
@@ -86,5 +88,6 @@ from .generator import *
 from .utils import summary
 from ..doc_utils import doc_process
 from .tokenizer import *
+from .scalar_mix import ScalarMix
 
 doc_process(sys.modules[__name__])

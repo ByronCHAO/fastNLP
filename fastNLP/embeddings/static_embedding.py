@@ -76,7 +76,7 @@ class StaticEmbedding(TokenEmbedding):
                    grad_fn=<EmbeddingBackward>)  # 每种word的输出是一致的。
 
     """
-    
+
     def __init__(self, vocab: Vocabulary, model_dir_or_name: Union[str, None] = 'en', embedding_dim=-1, requires_grad: bool = True,
                  init_method=None, lower=False, dropout=0, word_dropout=0, normalize=False, min_freq=1, **kwargs):
         r"""
@@ -107,7 +107,7 @@ class StaticEmbedding(TokenEmbedding):
                               f" dimension {embedding_dim}. If you want to use pre-trained embedding, "
                               f"set `embedding_dim` to 0.")
             model_dir_or_name = None
-        
+
         # 得到cache_path
         if model_dir_or_name is None:
             assert embedding_dim >= 1, "The dimension of embedding should be larger than 1."
@@ -141,7 +141,7 @@ class StaticEmbedding(TokenEmbedding):
                     if lowered_word_count[word.lower()] >= min_freq and word_count < min_freq:
                         truncated_vocab.add_word_lst([word] * (min_freq - word_count),
                                                      no_create_entry=truncated_vocab._is_word_no_create_entry(word))
-            
+
             # 只限制在train里面的词语使用min_freq筛选
             if kwargs.get('only_train_min_freq', False) and model_dir_or_name is not None:
                 for word in truncated_vocab.word_count.keys():
@@ -194,7 +194,7 @@ class StaticEmbedding(TokenEmbedding):
                 self.register_buffer('words_to_words', torch.arange(len(vocab)).long())
         if not self.only_norm_found_vector and normalize:
             embedding /= (torch.norm(embedding, dim=1, keepdim=True) + 1e-12)
-        
+
         if truncate_vocab:
             for i in range(len(truncated_words_to_words)):
                 index_in_truncated_vocab = truncated_words_to_words[i]
@@ -212,7 +212,7 @@ class StaticEmbedding(TokenEmbedding):
     @property
     def weight(self):
         return self.embedding.weight
-    
+
     def _randomly_init_embed(self, num_embedding, embedding_dim, init_embed=None):
         r"""
 
@@ -222,14 +222,14 @@ class StaticEmbedding(TokenEmbedding):
         :return: torch.FloatTensor
         """
         embed = torch.zeros(num_embedding, embedding_dim)
-        
+
         if init_embed is None:
             nn.init.uniform_(embed, -np.sqrt(3 / embedding_dim), np.sqrt(3 / embedding_dim))
         else:
             init_embed(embed)
-        
+
         return embed
-    
+
     def _load_with_vocab(self, embed_filepath, vocab, dtype=np.float32, padding='<pad>', unknown='<unk>',
                          error='ignore', init_method=None):
         r"""
@@ -304,7 +304,7 @@ class StaticEmbedding(TokenEmbedding):
                             matrix[index] = None
             # matrix中代表是需要建立entry的词
             vectors = self._randomly_init_embed(len(matrix), dim, init_method)
-            
+
             if vocab.unknown is None:  # 创建一个专门的unknown
                 unknown_idx = len(matrix)
                 vectors = torch.cat((vectors, torch.zeros(1, dim)), dim=0).contiguous()
@@ -321,7 +321,7 @@ class StaticEmbedding(TokenEmbedding):
                     index += 1
 
             return vectors
-    
+
     def forward(self, words):
         r"""
         传入words的index
@@ -402,4 +402,3 @@ class StaticEmbedding(TokenEmbedding):
         logger.info(f"Load StaticEmbedding from {folder}.")
         embed = cls(vocab=vocab, model_dir_or_name=os.path.join(folder, STATIC_EMBED_FILENAME), **hyper)
         return embed
-
