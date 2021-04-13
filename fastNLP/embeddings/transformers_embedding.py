@@ -14,6 +14,7 @@ from .contextual_embedding import ContextualEmbedding
 from ..core import logger
 from ..core.vocabulary import Vocabulary
 
+from ..modules import ScalarMix
 
 __all__ = ['TransformersEmbedding', 'TransformersWordPieceEncoder']
 
@@ -40,9 +41,20 @@ class TransformersEmbedding(ContextualEmbedding):
         >>> # torch.Size([1, 5, 2304])
 
     """
-    def __init__(self, vocab, model, tokenizer, layers='-1',
-                 pool_method: str = 'first', word_dropout=0, dropout=0, requires_grad=True,
-                 include_cls_sep: bool = False, auto_truncate=True, **kwargs):
+    def __init__(self,
+                 vocab,
+                 model,
+                 tokenizer,
+                 layers='-1',
+                 pool_method: str = 'first',
+                 output_size: int = -1,
+                 word_dropout=0,
+                 dropout=0,
+                 requires_grad=True,
+                 include_cls_sep: bool = False,
+                 auto_truncate=True,
+                 scalar_mix=False,
+                 **kwargs):
         r"""
 
         :param ~fastNLP.Vocabulary vocab: 词表
@@ -92,6 +104,18 @@ class TransformersEmbedding(ContextualEmbedding):
         self.requires_grad = requires_grad
         self._embed_size = len(self.model.layers) * model.config.hidden_size
 
+        if scalar_mix:
+            self.scalar_mix = ScalarMix(len(layers.split(',')))
+            self._embed_size = model.config.hidden_size
+        else:
+            self.scalar_mix = None
+
+        if output_size > 0:
+            self.projection = nn.Linear(self._embed_size, output_size, False)
+            self._embed_size = output_size
+        else:
+            self.projection = nn.Identity()
+
     def forward(self, words):
         r"""
             计算words的roberta embedding表示。计算之前会在每句话的开始增加<s>在结束增加</s>, 并根据include_cls_sep判断要不要
@@ -102,12 +126,13 @@ class TransformersEmbedding(ContextualEmbedding):
         """
         words = self.drop_word(words)
         outputs = self._get_sent_reprs(words)
-        if outputs is not None:
-            return self.dropout(outputs)
-        outputs = self.model(words)
-        outputs = torch.cat([*outputs], dim=-1)
-
-        return self.dropout(outputs)
+        if outputs is None:
+            outputs = self.model(words)
+        if self.scalar_mix is None:
+            outputs = torch.cat([*outputs], dim=-1)
+        else:
+            outputs = self.scalar_mix(outputs)
+        return self.projection(self.dropout(outputs))
 
     def drop_word(self, words):
         r"""
@@ -247,7 +272,7 @@ class _TransformersWordModel(nn.Module):
         self.encoder = model
         self.config = model.config
         self.only_last_layer = True
-        if not (isinstance(layers, str) and (layers=='-1' or int(layers)==self.encoder.config.num_hidden_layers)):
+        if not (isinstance(layers, str) and (layers=='-1' or (layers.isdigit() and int(layers)==self.encoder.config.num_hidden_layers))):
             assert self.encoder.config.output_hidden_states == True, \
                 f"You have to output all hidden states if you want to" \
                 f" access the middle output of `{model.__class__.__name__}` "
@@ -342,10 +367,12 @@ class _TransformersWordModel(nn.Module):
         all_outputs = self.encoder(input_ids=word_pieces, token_type_ids=token_type_ids,
                                                 attention_mask=attn_masks)
         if not self.only_last_layer:
-            for _ in all_outputs:
-                if isinstance(_, (tuple, list)) and len(_)==self.encoder_layer_number:
-                    bert_outputs = _
-                    break
+            bert_outputs = all_outputs[-1]
+            # for _ in all_outputs:
+            #     breakpoint()
+            #     if isinstance(_, (tuple, list)) and len(_)==self.encoder_layer_number+1:
+            #         bert_outputs = _
+            #         break
         else:
             bert_outputs = all_outputs[:1]
         # output_layers = [self.layers]  # len(self.layers) x batch_size x real_word_piece_length x hidden_size

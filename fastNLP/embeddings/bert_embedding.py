@@ -166,7 +166,6 @@ class BertEmbedding(ContextualEmbedding):
             outputs = torch.cat([*outputs], dim=-1)
         else:
             outputs = self.scalar_mix(outputs)
-
         return self.projection(self.dropout(outputs))
 
     def drop_word(self, words):

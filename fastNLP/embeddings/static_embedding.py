@@ -225,6 +225,8 @@ class StaticEmbedding(TokenEmbedding):
 
         if init_embed is None:
             nn.init.uniform_(embed, -np.sqrt(3 / embedding_dim), np.sqrt(3 / embedding_dim))
+        elif init_embed == 'normal':
+            nn.init.normal_(embed)
         else:
             init_embed(embed)
 

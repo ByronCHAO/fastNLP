@@ -1,3 +1,9 @@
+r"""undocumented
+来自supar
+"""
+
+__all__ = ['ScalarMix']
+
 import torch
 import torch.nn as nn
 
