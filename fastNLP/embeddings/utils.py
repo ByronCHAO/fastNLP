@@ -25,6 +25,8 @@ def _construct_char_vocab_from_vocab(vocab: Vocabulary, min_freq: int = 1, inclu
     """
     char_vocab = Vocabulary(min_freq=min_freq)
     for word, index in vocab:
+        if word in ('<bos>', '<eos>'):
+            char_vocab.add_word_lst([word])
         if not vocab._is_word_no_create_entry(word):
             char_vocab.add_word_lst(list(word))
     if include_word_start_end:

@@ -206,6 +206,7 @@ class LSTMCharEmbedding(TokenEmbedding):
                  word_dropout: float = 0,
                  dropout: float = 0,
                  hidden_size=50,
+                 max_word_len=20,
                  pool_method: str = 'max',
                  activation='relu',
                  min_char_freq: int = 2,
@@ -222,7 +223,7 @@ class LSTMCharEmbedding(TokenEmbedding):
         :param float word_dropout: 以多大的概率将一个词替换为unk。这样既可以训练unk也是一定的regularize。
         :param dropout: 以多大概率drop character embedding的输出以及最终的word的输出。
         :param hidden_size: LSTM的中间hidden的大小，如果为bidirectional的，hidden会除二，默认为50.
-        :param pool_method: 支持'max', 'avg'。
+        :param pool_method: 支持'max', 'avg', 'last'。
         :param activation: 激活函数，支持'relu', 'sigmoid', 'tanh', 或者自定义函数.
         :param min_char_freq: character的最小出现次数。默认值为2.
         :param bidirectional: 是否使用双向的LSTM进行encode。默认值为True。
@@ -237,7 +238,7 @@ class LSTMCharEmbedding(TokenEmbedding):
 
         assert hidden_size % 2 == 0, "Only even kernel is allowed."
 
-        assert pool_method in ('max', 'avg')
+        assert pool_method in ('max', 'avg', 'last')
         self.pool_method = pool_method
         # activation function
         if isinstance(activation, str):
@@ -262,7 +263,7 @@ class LSTMCharEmbedding(TokenEmbedding):
         self.char_pad_index = self.char_vocab.padding_idx
         logger.info(f"In total, there are {len(self.char_vocab)} distinct characters.")
         # 对vocab进行index
-        max_word_len = max(map(lambda x: len(x[0]), vocab))
+        max_word_len = min(max(map(lambda x: len(x[0]), vocab)), max_word_len)
         if include_word_start_end:
             max_word_len += 2
         self.register_buffer('words_to_chars_embedding',
@@ -270,11 +271,13 @@ class LSTMCharEmbedding(TokenEmbedding):
         self.register_buffer('word_lengths', torch.zeros(len(vocab)).long())
         for word, index in vocab:
             # if index!=vocab.padding_idx:  # 如果是pad的话，直接就为pad_value了. 修改为不区分pad与否
+            if word in ('<bos>', '<eos>'):
+                word = [word]
             if include_word_start_end:
                 word = ['<bow>'] + list(word) + ['<eow>']
-            self.words_to_chars_embedding[index, :len(word)] = \
-                torch.LongTensor([self.char_vocab.to_index(c) for c in word])
-            self.word_lengths[index] = len(word)
+            t = torch.LongTensor([self.char_vocab.to_index(c) for c in word[:max_word_len]])
+            self.words_to_chars_embedding[index, :t.shape] = len(t)
+            self.word_lengths[index] = len(t)
         if pre_train_char_embed:
             self.char_embedding = StaticEmbedding(self.char_vocab, pre_train_char_embed)
         else:
@@ -311,16 +314,22 @@ class LSTMCharEmbedding(TokenEmbedding):
         chars = self.dropout(chars)
         reshaped_chars = chars.reshape(batch_size * max_len, max_word_len, -1)
         char_seq_len = chars_masks.eq(False).sum(dim=-1).reshape(batch_size * max_len)
-        lstm_chars = self.lstm(reshaped_chars, char_seq_len)[0].reshape(batch_size, max_len, max_word_len, -1)
-        # B x M x M x H
+        lstm_chars, (h, _) = self.lstm(reshaped_chars, char_seq_len)
 
-        lstm_chars = self.activation(lstm_chars)
-        if self.pool_method == 'max':
-            lstm_chars = lstm_chars.masked_fill(chars_masks.unsqueeze(-1), float('-inf'))
-            chars, _ = torch.max(lstm_chars, dim=-2)  # batch_size x max_len x H
+        if self.pool_method == 'last':
+            h = torch.cat(torch.unbind(h), -1)
+            chars = h.new_zeros(*word_lengths.shape, h.shape[-1])
+            chars = chars.masked_scatter_((word_lengths > 0).unsqueeze(-1), h)
         else:
-            lstm_chars = lstm_chars.masked_fill(chars_masks.unsqueeze(-1), 0)
-            chars = torch.sum(lstm_chars, dim=-2) / chars_masks.eq(False).sum(dim=-1, keepdim=True).float()
+            lstm_chars = lstm_chars.reshape(batch_size, max_len, max_word_len, -1)
+            lstm_chars = self.activation(lstm_chars)
+
+            if self.pool_method == 'max':
+                lstm_chars = lstm_chars.masked_fill(chars_masks.unsqueeze(-1), float('-inf'))
+                chars, _ = torch.max(lstm_chars, dim=-2)  # batch_size x max_len x H
+            else: # avg
+                lstm_chars = lstm_chars.masked_fill(chars_masks.unsqueeze(-1), 0)
+                chars = torch.sum(lstm_chars, dim=-2) / chars_masks.eq(False).sum(dim=-1, keepdim=True).float()
 
         if self.use_linear:
             chars = self.fc(chars)
