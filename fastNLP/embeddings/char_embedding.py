@@ -46,6 +46,7 @@ class CNNCharEmbedding(TokenEmbedding):
                  dropout: float = 0,
                  filter_nums: List[int] = (40, 30, 20),
                  kernel_sizes: List[int] = (5, 3, 1),
+                 max_word_len=20,
                  pool_method: str = 'max',
                  activation='relu',
                  min_char_freq: int = 2,
@@ -55,7 +56,7 @@ class CNNCharEmbedding(TokenEmbedding):
                  linear: bool = True,
                  dropout_on: str = 'both'):
         r"""
-        
+
         :param vocab: 词表
         :param embed_size: 该CNNCharEmbedding的输出维度大小，默认值为50.
         :param char_emb_size: character的embed的维度。character是从vocab中生成的。默认值为50.
@@ -107,7 +108,7 @@ class CNNCharEmbedding(TokenEmbedding):
         self.char_pad_index = self.char_vocab.padding_idx
         logger.info(f"In total, there are {len(self.char_vocab)} distinct characters.")
         # 对vocab进行index
-        max_word_len = max(map(lambda x: len(x[0]), vocab))
+        max_word_len = min(max(map(lambda x: len(x[0]), vocab)), max_word_len)
         if include_word_start_end:
             max_word_len += 2
         self.register_buffer('words_to_chars_embedding',
@@ -115,11 +116,13 @@ class CNNCharEmbedding(TokenEmbedding):
         self.register_buffer('word_lengths', torch.zeros(len(vocab)).long())
         for word, index in vocab:
             # if index!=vocab.padding_idx:  # 如果是pad的话，直接就为pad_value了。修改为不区分pad, 这样所有的<pad>也是同一个embed
+            if word in vocab.specials:
+                word = [word]
             if include_word_start_end:
                 word = ['<bow>'] + list(word) + ['<eow>']
-            self.words_to_chars_embedding[index, :len(word)] = \
-                torch.LongTensor([self.char_vocab.to_index(c) for c in word])
-            self.word_lengths[index] = len(word)
+            t = torch.LongTensor([self.char_vocab.to_index(c) for c in word[:max_word_len]])
+            self.words_to_chars_embedding[index, :len(t)] = t
+            self.word_lengths[index] = len(t)
         # self.char_embedding = nn.Embedding(len(self.char_vocab), char_emb_size)
         if pre_train_char_embed:
             self.char_embedding = StaticEmbedding(self.char_vocab, model_dir_or_name=pre_train_char_embed)
@@ -216,7 +219,7 @@ class LSTMCharEmbedding(TokenEmbedding):
                  include_word_start_end: bool = True,
                  linear: bool = True):
         r"""
-        
+
         :param vocab: 词表
         :param embed_size: LSTMCharEmbedding的输出维度。默认值为50.
         :param char_emb_size: character的embedding的维度。默认值为50.
@@ -271,12 +274,12 @@ class LSTMCharEmbedding(TokenEmbedding):
         self.register_buffer('word_lengths', torch.zeros(len(vocab)).long())
         for word, index in vocab:
             # if index!=vocab.padding_idx:  # 如果是pad的话，直接就为pad_value了. 修改为不区分pad与否
-            if word in ('<bos>', '<eos>'):
+            if word in vocab.specials:
                 word = [word]
             if include_word_start_end:
                 word = ['<bow>'] + list(word) + ['<eow>']
             t = torch.LongTensor([self.char_vocab.to_index(c) for c in word[:max_word_len]])
-            self.words_to_chars_embedding[index, :t.shape] = len(t)
+            self.words_to_chars_embedding[index, :len(t)] = t
             self.word_lengths[index] = len(t)
         if pre_train_char_embed:
             self.char_embedding = StaticEmbedding(self.char_vocab, pre_train_char_embed)

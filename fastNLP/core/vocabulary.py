@@ -76,7 +76,7 @@ class Vocabulary(object):
         vocab.to_word(5) # int to str
     """
     
-    def __init__(self, max_size=None, min_freq=None, padding='<pad>', unknown='<unk>'):
+    def __init__(self, max_size=None, min_freq=None, padding='<pad>', unknown='<unk>', specials=[]):
         r"""
         
         :param int max_size: `Vocabulary` 的最大大小, 即能存储词的最大数量
@@ -96,6 +96,7 @@ class Vocabulary(object):
         self.word_count = Counter()
         self.unknown = unknown
         self.padding = padding
+        self.specials = specials
         self._word2idx = None
         self._idx2word = None
         self.rebuild = True
@@ -212,6 +213,8 @@ class Vocabulary(object):
                 self._word2idx[self.padding] = len(self._word2idx)
             if (self.unknown is not None) and (self.unknown != self.padding):
                 self._word2idx[self.unknown] = len(self._word2idx)
+            for special in self.specials:
+                self._word2idx[special] = len(self._word2idx)
         
         max_size = min(self.max_size, len(self.word_count)) if self.max_size else None
         words = self.word_count.most_common(max_size)
