@@ -159,7 +159,7 @@ class StaticEmbedding(TokenEmbedding):
         self.only_norm_found_vector = kwargs.get('only_norm_found_vector', False)
         # 读取embedding
         if lower:
-            lowered_vocab = Vocabulary(padding=vocab.padding, unknown=vocab.unknown)
+            lowered_vocab = Vocabulary(padding=vocab.padding, unknown=vocab.unknown, specials=vocab.specials)
             for word, index in vocab:
                 if vocab._is_word_no_create_entry(word):
                     lowered_vocab.add_word(word.lower(), no_create_entry=True)

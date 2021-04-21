@@ -97,6 +97,7 @@ class Vocabulary(object):
         self.unknown = unknown
         self.padding = padding
         self.specials = specials
+        assert all('\t' not in s for s in specials), "special tokens can not contain '\\t'"
         self._word2idx = None
         self._idx2word = None
         self.rebuild = True
@@ -365,17 +366,20 @@ class Vocabulary(object):
             for fn in field_name:
                 field = ins[fn]
                 if isinstance(field, str) or not _is_iterable(field):
-                    self.add_word(field, no_create_entry=no_create_entry)
+                    if field not in self.specials:
+                        self.add_word(field, no_create_entry=no_create_entry)
                 else:
                     if isinstance(field[0], str) or not _is_iterable(field[0]):
                         for word in field:
-                            self.add_word(word, no_create_entry=no_create_entry)
+                            if word not in self.specials:
+                                self.add_word(word, no_create_entry=no_create_entry)
                     else:
                         if not isinstance(field[0][0], str) and _is_iterable(field[0][0]):
                             raise RuntimeError("Only support field with 2 dimensions.")
                         for words in field:
                             for word in words:
-                                self.add_word(word, no_create_entry=no_create_entry)
+                                if word not in self.specials:
+                                    self.add_word(word, no_create_entry=no_create_entry)
         
         for idx, dataset in enumerate(datasets):
             if isinstance(dataset, DataSet):
@@ -509,6 +513,7 @@ class Vocabulary(object):
         f.write(f'min_freq\t{self.min_freq}\n')
         f.write(f'unknown\t{self.unknown}\n')
         f.write(f'padding\t{self.padding}\n')
+        f.write('\t'.joint(['specials', *self.specials])); f.write('\n')
         f.write(f'rebuild\t{self.rebuild}\n')
         f.write('\n')
         # idx: 如果idx为-2, 说明还没有进行build; 如果idx为-1，说明该词未编入
@@ -545,7 +550,11 @@ class Vocabulary(object):
         for line in f:
             line = line.strip('\n')
             if line:
-                name, value = line.split()
+                name, *value = line.split('\t')
+                if name == 'specials':
+                    vocab.specials = value
+                    continue
+                value = value[0]
                 if name in ('max_size', 'min_freq'):
                     value = int(value) if value!='None' else None
                     setattr(vocab, name, value)
@@ -573,10 +582,16 @@ class Vocabulary(object):
         word_counter = Counter(word_counter)
         no_create_entry_counter = Counter(no_create_entry_counter)
         if len(word2idx)>0:
+            idx = 0
             if vocab.padding:
-                word2idx[vocab.padding] = 0
+                word2idx[vocab.padding] = idx
+                idx += 1
             if vocab.unknown:
-                word2idx[vocab.unknown] = 1 if vocab.padding else 0
+                word2idx[vocab.unknown] = idx
+                idx += 1
+            for special in vocab.specials:
+                word2idx[special] = idx
+                idx += 1
             idx2word = {value:key for key,value in word2idx.items()}
 
         vocab.word_count = word_counter
