@@ -23,8 +23,10 @@ def _construct_char_vocab_from_vocab(vocab: Vocabulary, min_freq: int = 1, inclu
     :param include_word_start_end: 是否需要包含特殊的<bow>和<eos>
     :return:
     """
-    char_vocab = Vocabulary(min_freq=min_freq)
+    char_vocab = Vocabulary(min_freq=min_freq, padding='<cpad>', unknown='<cunk>')
     for word, index in vocab:
+        if index == vocab.padding_idx or index == vocab.unknown_idx:
+            continue
         if word in vocab.specials:
             char_vocab.add_word_lst([word])
         elif not vocab._is_word_no_create_entry(word):

@@ -149,7 +149,7 @@ class StaticEmbedding(TokenEmbedding):
                         truncated_vocab.add_word_lst([word] * (min_freq - truncated_vocab.word_count[word]),
                                                      no_create_entry=True)
             truncated_vocab.build_vocab()
-            truncated_words_to_words = torch.arange(len(vocab)).long()
+            truncated_words_to_words = torch.arange(len(vocab))
             for word, index in vocab:
                 truncated_words_to_words[index] = truncated_vocab.to_index(word)
             logger.info(f"{len(vocab) - len(truncated_vocab)} words have frequency less than {min_freq}.")
@@ -161,10 +161,7 @@ class StaticEmbedding(TokenEmbedding):
         if lower:
             lowered_vocab = Vocabulary(padding=vocab.padding, unknown=vocab.unknown, specials=vocab.specials)
             for word, index in vocab:
-                if vocab._is_word_no_create_entry(word):
-                    lowered_vocab.add_word(word.lower(), no_create_entry=True)
-                else:
-                    lowered_vocab.add_word(word.lower())  # 先加入需要创建entry的
+                lowered_vocab.add_word(word.lower(), no_create_entry=vocab._is_word_no_create_entry(word))
             logger.info(f"All word in the vocab have been lowered. There are {len(vocab)} words, {len(lowered_vocab)} "
                   f"unique lowered words.")
             if model_path:
@@ -176,8 +173,7 @@ class StaticEmbedding(TokenEmbedding):
                 unknown_idx = lowered_vocab.unknown_idx
             else:
                 unknown_idx = embedding.size(0) - 1  # 否则是最后一个为unknow
-                self.register_buffer('words_to_words', torch.arange(len(vocab)).long())
-            words_to_words = torch.full((len(vocab),), fill_value=unknown_idx, dtype=torch.long).long()
+            words_to_words = torch.full((len(vocab),), fill_value=unknown_idx, dtype=torch.long)
             for word, index in vocab:
                 if word not in lowered_vocab:
                     word = word.lower()
@@ -191,7 +187,7 @@ class StaticEmbedding(TokenEmbedding):
                 embedding = self._load_with_vocab(model_path, vocab=vocab, init_method=init_method)
             else:
                 embedding = self._randomly_init_embed(len(vocab), embedding_dim, init_method)
-                self.register_buffer('words_to_words', torch.arange(len(vocab)).long())
+                self.register_buffer('words_to_words', torch.arange(len(vocab)))
         if not self.only_norm_found_vector and normalize:
             embedding /= (torch.norm(embedding, dim=1, keepdim=True) + 1e-12)
 
@@ -267,6 +263,8 @@ class StaticEmbedding(TokenEmbedding):
                 matrix[vocab.padding_idx] = torch.zeros(dim)
             if vocab.unknown:
                 matrix[vocab.unknown_idx] = torch.zeros(dim)
+            for special in vocab.specials:
+                matrix[vocab[special]] = torch.zeros(dim)
             found_count = 0
             found_unknown = False
             for idx, line in enumerate(f, start_idx):

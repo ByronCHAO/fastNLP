@@ -20,7 +20,7 @@ class LSTM(nn.Module):
     """
 
     def __init__(self, input_size, hidden_size=100, num_layers=1, dropout=0.0, batch_first=True,
-                 bidirectional=False, bias=True):
+                 bidirectional=False, bias=True, default_init=False):
         r"""
         
         :param input_size:  输入 `x` 的特征维度
@@ -36,7 +36,8 @@ class LSTM(nn.Module):
         self.batch_first = batch_first
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, bias=bias, batch_first=batch_first,
                             dropout=dropout, bidirectional=bidirectional)
-        self.init_param()
+        if not default_init:
+            self.init_param()
 
     def init_param(self):
         for name, param in self.named_parameters():

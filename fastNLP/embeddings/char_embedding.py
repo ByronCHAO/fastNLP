@@ -217,7 +217,8 @@ class LSTMCharEmbedding(TokenEmbedding):
                  pre_train_char_embed: str = None,
                  requires_grad: bool = True,
                  include_word_start_end: bool = True,
-                 linear: bool = True):
+                 linear: bool = True,
+                 default_nn_init: bool =False):
         r"""
 
         :param vocab: 词表
@@ -273,8 +274,7 @@ class LSTMCharEmbedding(TokenEmbedding):
                              torch.full((len(vocab), max_word_len), fill_value=self.char_pad_index, dtype=torch.long))
         self.register_buffer('word_lengths', torch.zeros(len(vocab)).long())
         for word, index in vocab:
-            # if index!=vocab.padding_idx:  # 如果是pad的话，直接就为pad_value了. 修改为不区分pad与否
-            if word in vocab.specials:
+            if word in vocab.specials or index == vocab.padding_idx or index == vocab.unknown_idx:
                 word = [word]
             if include_word_start_end:
                 word = ['<bow>'] + list(word) + ['<eow>']
@@ -293,7 +293,8 @@ class LSTMCharEmbedding(TokenEmbedding):
             assert hidden_size == embed_size, "Invalid embed_size because you set linear=False."
         hidden_size = hidden_size // 2 if bidirectional else hidden_size
 
-        self.lstm = LSTM(self.char_embedding.embedding_dim, hidden_size, bidirectional=bidirectional, batch_first=True)
+        self.lstm = LSTM(self.char_embedding.embedding_dim, hidden_size, bidirectional=bidirectional, batch_first=True, 
+                         default_init=default_nn_init)
         self._embed_size = embed_size
         self.bidirectional = bidirectional
         self.requires_grad = requires_grad
