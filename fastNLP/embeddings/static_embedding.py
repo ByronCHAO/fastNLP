@@ -152,7 +152,8 @@ class StaticEmbedding(TokenEmbedding):
             truncated_words_to_words = torch.arange(len(vocab))
             for word, index in vocab:
                 truncated_words_to_words[index] = truncated_vocab.to_index(word)
-            logger.info(f"{len(vocab) - len(truncated_vocab)} words have frequency less than {min_freq}.")
+            logger.info(f"{len(vocab) - len(truncated_vocab)} words have frequency less than {min_freq}. "
+                        f"{len(truncated_vocab)} is created.")
             vocab = truncated_vocab
 
         self.only_use_pretrain_word = kwargs.get('only_use_pretrain_word', False)
@@ -267,6 +268,7 @@ class StaticEmbedding(TokenEmbedding):
                 matrix[vocab[special]] = torch.zeros(dim)
             found_count = 0
             found_unknown = False
+            lowered_in_matrix = set()
             for idx, line in enumerate(f, start_idx):
                 try:
                     parts = line.strip().split()
@@ -281,9 +283,22 @@ class StaticEmbedding(TokenEmbedding):
                     if word in vocab:
                         index = vocab.to_index(word)
                         if index in matrix:
-                            warnings.warn(f"Word has more than one vector in embedding file. Set logger level to "
-                                          f"DEBUG for detail.")
-                            logger.debug(f"Word:{word} occurs again in line:{idx}(starts from 0)")
+                            if index in lowered_in_matrix:
+                                lowered_in_matrix.remove(index)
+                                found_count -= 1
+                            else:
+                                warnings.warn(f"Word has more than one vector in embedding file. Set logger level to "
+                                            f"DEBUG for detail.")
+                                logger.debug(f"Word:{word} occurs again in line:{idx}(starts from 0)")
+                        matrix[index] = torch.from_numpy(np.fromstring(' '.join(nums), sep=' ', dtype=dtype, count=dim))
+                        if self.only_norm_found_vector:
+                            matrix[index] = matrix[index] / np.linalg.norm(matrix[index])
+                        found_count += 1
+                    elif word.lower() in vocab:
+                        index = vocab.to_index(word.lower())
+                        if index in matrix:
+                            continue
+                        lowered_in_matrix.add(index)
                         matrix[index] = torch.from_numpy(np.fromstring(' '.join(nums), sep=' ', dtype=dtype, count=dim))
                         if self.only_norm_found_vector:
                             matrix[index] = matrix[index] / np.linalg.norm(matrix[index])
