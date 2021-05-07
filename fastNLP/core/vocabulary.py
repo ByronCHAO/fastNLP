@@ -513,7 +513,7 @@ class Vocabulary(object):
         f.write(f'min_freq\t{self.min_freq}\n')
         f.write(f'unknown\t{self.unknown}\n')
         f.write(f'padding\t{self.padding}\n')
-        f.write('\t'.joint(['specials', *self.specials])); f.write('\n')
+        f.write('\t'.join(['specials', *self.specials])); f.write('\n')
         f.write(f'rebuild\t{self.rebuild}\n')
         f.write('\n')
         # idx: 如果idx为-2, 说明还没有进行build; 如果idx为-1，说明该词未编入
