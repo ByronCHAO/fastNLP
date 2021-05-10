@@ -918,7 +918,8 @@ class SpanFPreRecMetric(MetricBase):
                  only_gross=True,
                  f_type='micro',
                  beta=1,
-                 use_confidence=False):
+                 use_confidence=False,
+                 tag_to_span_func=None):
         r"""
         
         :param tag_vocab: 标签的 :class:`~fastNLP.Vocabulary` 。支持的标签为"B"(没有label)；或"B-xxx"(xxx为某种label，比如POS中的NN)，
@@ -946,7 +947,9 @@ class SpanFPreRecMetric(MetricBase):
             self.encoding_type = _get_encoding_type_from_tag_vocab(tag_vocab)
 
         self.use_confidence = use_confidence
-        if self.encoding_type == 'bmes':
+        if tag_to_span_func is not None:
+            self.tag_to_span_func = tag_to_span_func
+        elif self.encoding_type == 'bmes':
             self.tag_to_span_func = _bmes_tag_to_spans
         elif self.encoding_type == 'bio':
             self.tag_to_span_func = _bio_tag_to_spans
