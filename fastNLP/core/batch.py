@@ -456,7 +456,7 @@ def _to_tensor(batch, field_dtype):
     """
     try:
         if field_dtype is not None and isinstance(field_dtype, type)\
-                and issubclass(field_dtype, Number) \
+                and issubclass(field_dtype, (Number, np.bool_)) \
                 and not isinstance(batch, torch.Tensor):
             new_batch = torch.as_tensor(batch)
             flag = True
