@@ -17,6 +17,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import sparse
 
 from ._logger import logger
 from .utils import _is_iterable
@@ -80,6 +81,8 @@ def _get_ele_type_and_dim(cell: Any, dim=0):
         if len(dims) > 1:
             raise SetInputOrTargetException("Mixed dimension detected: {}.".format(list(dims)))
         return types.pop(), dims.pop()
+    elif isinstance(cell, sparse.COO):
+        return cell.dtype, cell.ndim + dim
     else:  # 包含tuple, set, dict以及其它的类型
         raise SetInputOrTargetException(f"Cannot process type:{type(cell)}.")
 
@@ -317,33 +320,50 @@ class EngChar2DPadder(Padder):
 
 
 class SentFeat2DPadder(Padder):
-    def __init__(self, pad_val=0):
-        super().__init__(pad_val=pad_val)
+    def __init__(self, pad_val=0, pad_size=0, **kwargs):
+        self.pad_size = pad_size
+        super().__init__(pad_val=pad_val, **kwargs)
 
     def __call__(self, contents, field_name, field_ele_dtype, dim: int):
-        r"""
-        传入的是List内容。假设有以下的DataSet。
-
-        :param List[Any] contents: 传入的element是inplace的，即直接修改element可能导致数据变化，建议inplace修改之前
-            deepcopy一份。
-        :param str, field_name: field的名称。
-        :param np.int64,np.float64,np.str,None, field_ele_dtype: 该field的内层元素的类型。如果该field的ignore_type为True，
-            该这个值为None。
-        :param dim: 这个field的维度。当ignore_type为True时，该值为None
-        :return: np.array([padded_element])
-        """
         if not isinstance(contents[0], np.ndarray):
             contents = [np.array(c) for c in contents]
-            dim = contents[0].dim
+            dim = contents[0].ndim
 
-        assert dim == 2, f"Field:{field_name} has {dim}, SentFeat2DPadder only supports input with 2 dimensions."
+        assert dim == 2, f'Field:{field_name} has {dim}, SentFeat2DPadder only supports input with 2 dimensions.'
         batch_size, max_len, dtype = len(contents), max(
             c.shape[0] for c in contents), type(contents[0][0][0])
+        max_len += self.pad_size
         padded_array = np.full((batch_size, max_len, max_len),
                                fill_value=self.pad_val,
                                dtype=dtype)
         for b_idx, matrix in enumerate(contents):
             padded_array[b_idx, :matrix.shape[0], :matrix.shape[1]] = matrix
+        return padded_array
+
+class SentFeat2DCatPadder(Padder):
+    # allow one instance has 'batch' dim. pad and cat them.
+    def __init__(self, pad_val=0, pad_size=0, **kwargs):
+        self.pad_size = pad_size
+        super().__init__(pad_val=pad_val, **kwargs)
+
+    def __call__(self, contents, field_name, field_ele_dtype, dim: int):
+        if isinstance(contents[0], sparse.COO):
+            contents = [c.todense() for c in contents]
+        if not isinstance(contents[0], np.ndarray):
+            contents = [np.array(c) for c in contents]
+            dim = contents[0].ndim
+
+        assert dim == 3, f'Field:{field_name} has {dim}, SentFeat2DCarPadder only supports input with 3 dimensions.'
+        batch_size = sum(len(c) for c in contents)
+        max_len, dtype = max(c.shape[1] for c in contents), contents[0].dtype
+        max_len += self.pad_size
+        padded_array = np.full((batch_size, max_len, max_len),
+                               fill_value=self.pad_val,
+                               dtype=dtype)
+        offset = 0
+        for matrix in contents:
+            padded_array[offset: offset + len(matrix), :matrix.shape[1], :matrix.shape[2]] = matrix
+            offset += len(matrix)
         return padded_array
 
 

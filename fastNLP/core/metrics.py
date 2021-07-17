@@ -971,6 +971,7 @@ class SpanFPreRecMetric(MetricBase):
 
         self.tag_vocab = tag_vocab
 
+        self._unlabeled_true_positives = 0
         self._true_positives = defaultdict(int)
         self._false_positives = defaultdict(int)
         self._false_negatives = defaultdict(int)
@@ -1028,8 +1029,12 @@ class SpanFPreRecMetric(MetricBase):
             else:
                 pred_spans = self.tag_to_span_func(pred_str_tags, ignore_labels=self.ignore_labels)
             gold_spans = self.tag_to_span_func(gold_str_tags, ignore_labels=self.ignore_labels)
+            unlabeled_gold_spans = [pos for _, pos in gold_spans]
 
             for span in pred_spans:
+                if span[1] in unlabeled_gold_spans:
+                    self._unlabeled_true_positives += 1
+                    unlabeled_gold_spans.remove(span[1])
                 if span in gold_spans:
                     self._true_positives[span[0]] += 1
                     gold_spans.remove(span)
@@ -1077,6 +1082,7 @@ class SpanFPreRecMetric(MetricBase):
             evaluate_result['rec'] = rec
 
         if reset:
+            self._unlabeled_true_positives = 0
             self._true_positives = defaultdict(int)
             self._false_positives = defaultdict(int)
             self._false_negatives = defaultdict(int)

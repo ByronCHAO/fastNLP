@@ -12,6 +12,9 @@ from collections import Counter
 from functools import partial
 from functools import wraps
 
+import numpy as np
+import sparse
+
 from ._logger import logger
 from .dataset import DataSet
 from .utils import Option
@@ -25,25 +28,22 @@ class VocabularyOption(Option):
                  min_freq=None,
                  padding='<pad>',
                  unknown='<unk>'):
-        super().__init__(
-            max_size=max_size,
-            min_freq=min_freq,
-            padding=padding,
-            unknown=unknown
-        )
+        super().__init__(max_size=max_size,
+                         min_freq=min_freq,
+                         padding=padding,
+                         unknown=unknown)
 
 
 def _check_build_vocab(func):
     r"""A decorator to make sure the indexing is built before used.
 
     """
-    
     @wraps(func)  # to solve missing docstring
     def _wrapper(self, *args, **kwargs):
         if self._word2idx is None or self.rebuild is True:
             self.build_vocab()
         return func(self, *args, **kwargs)
-    
+
     return _wrapper
 
 
@@ -51,17 +51,18 @@ def _check_build_status(func):
     r"""A decorator to check whether the vocabulary updates after the last build.
 
     """
-    
     @wraps(func)  # to solve missing docstring
     def _wrapper(self, *args, **kwargs):
         if self.rebuild is False:
             self.rebuild = True
-            if self.max_size is not None and len(self.word_count) >= self.max_size:
-                logger.info("[Warning] Vocabulary has reached the max size {} when calling {} method. "
-                            "Adding more words may cause unexpected behaviour of Vocabulary. ".format(
-                    self.max_size, func.__name__))
+            if self.max_size is not None and len(
+                    self.word_count) >= self.max_size:
+                logger.info(
+                    "[Warning] Vocabulary has reached the max size {} when calling {} method. "
+                    "Adding more words may cause unexpected behaviour of Vocabulary. "
+                    .format(self.max_size, func.__name__))
         return func(self, *args, **kwargs)
-    
+
     return _wrapper
 
 
@@ -75,8 +76,12 @@ class Vocabulary(object):
         vocab["word"] # str to int
         vocab.to_word(5) # int to str
     """
-    
-    def __init__(self, max_size=None, min_freq=None, padding='<pad>', unknown='<unk>', specials=[]):
+    def __init__(self,
+                 max_size=None,
+                 min_freq=None,
+                 padding='<pad>',
+                 unknown='<unk>',
+                 specials=[]):
         r"""
         
         :param int max_size: `Vocabulary` 的最大大小, 即能存储词的最大数量
@@ -97,7 +102,8 @@ class Vocabulary(object):
         self.unknown = unknown
         self.padding = padding
         self.specials = specials
-        assert all('\t' not in s for s in specials), "special tokens can not contain '\\t'"
+        assert all('\t' not in s
+                   for s in specials), "special tokens can not contain '\\t'"
         self._word2idx = None
         self._idx2word = None
         self.rebuild = True
@@ -137,7 +143,7 @@ class Vocabulary(object):
         self._add_no_create_entry(word_lst, no_create_entry)
         self.word_count.update(word_lst)
         return self
-    
+
     @_check_build_status
     def add(self, word, no_create_entry=False):
         r"""
@@ -154,7 +160,7 @@ class Vocabulary(object):
         self._add_no_create_entry(word, no_create_entry)
         self.word_count[word] += 1
         return self
-    
+
     def _add_no_create_entry(self, word, no_create_entry):
         r"""
         在新加入word时，检查_no_create_word的设置。
@@ -166,11 +172,12 @@ class Vocabulary(object):
         if isinstance(word, str) or not _is_iterable(word):
             word = [word]
         for w in word:
-            if no_create_entry and self.word_count.get(w, 0) == self._no_create_word.get(w, 0):
+            if no_create_entry and self.word_count.get(
+                    w, 0) == self._no_create_word.get(w, 0):
                 self._no_create_word[w] += 1
             elif not no_create_entry and w in self._no_create_word:
                 self._no_create_word.pop(w)
-    
+
     @_check_build_status
     def add_word(self, word, no_create_entry=False):
         r"""
@@ -185,7 +192,7 @@ class Vocabulary(object):
             则这个词将认为是需要创建单独的vector的。
         """
         self.add(word, no_create_entry=no_create_entry)
-    
+
     @_check_build_status
     def add_word_lst(self, word_lst, no_create_entry=False):
         r"""
@@ -201,7 +208,7 @@ class Vocabulary(object):
         """
         self.update(word_lst, no_create_entry=no_create_entry)
         return self
-    
+
     def build_vocab(self):
         r"""
         根据已经出现的词和出现频率构建词典. 注意: 重复构建可能会改变词典的大小,
@@ -216,19 +223,22 @@ class Vocabulary(object):
                 self._word2idx[self.unknown] = len(self._word2idx)
             for special in self.specials:
                 self._word2idx[special] = len(self._word2idx)
-        
-        max_size = min(self.max_size, len(self.word_count)) if self.max_size else None
+
+        max_size = min(self.max_size, len(
+            self.word_count)) if self.max_size else None
         words = self.word_count.most_common(max_size)
         if self.min_freq is not None:
             words = filter(lambda kv: kv[1] >= self.min_freq, words)
         if self._word2idx is not None:
             words = filter(lambda kv: kv[0] not in self._word2idx, words)
         start_idx = len(self._word2idx)
-        self._word2idx.update({w: i + start_idx for i, (w, _) in enumerate(words)})
+        self._word2idx.update(
+            {w: i + start_idx
+             for i, (w, _) in enumerate(words)})
         self.build_reverse_vocab()
         self.rebuild = False
         return self
-    
+
     def build_reverse_vocab(self):
         r"""
         基于 `word to index` dict, 构建 `index to word` dict.
@@ -236,11 +246,11 @@ class Vocabulary(object):
         """
         self._idx2word = {i: w for w, i in self._word2idx.items()}
         return self
-    
+
     @_check_build_vocab
     def __len__(self):
         return len(self._word2idx)
-    
+
     @_check_build_vocab
     def __contains__(self, item):
         r"""
@@ -250,7 +260,7 @@ class Vocabulary(object):
         :return: True or False
         """
         return item in self._word2idx
-    
+
     def has_word(self, w):
         r"""
         检查词是否被记录::
@@ -263,7 +273,7 @@ class Vocabulary(object):
         :return: ``True`` or ``False``
         """
         return self.__contains__(w)
-    
+
     @_check_build_vocab
     def __getitem__(self, w):
         r"""
@@ -277,7 +287,7 @@ class Vocabulary(object):
             return self._word2idx[self.unknown]
         else:
             raise ValueError("word `{}` not in vocabulary".format(w))
-    
+
     @_check_build_vocab
     def index_dataset(self, *datasets, field_name, new_field_name=None):
         r"""
@@ -292,25 +302,33 @@ class Vocabulary(object):
         :param list,str new_field_name: 保存结果的field_name. 若为 ``None`` , 将覆盖原field.
             Default: ``None``.
         """
-        
         def index_instance(field):
             r"""
-            有几种情况, str, 1d-list, 2d-list
+            有几种情况, str, 1d-list, 2d-list, sparse
             :param ins:
             :return:
             """
             if isinstance(field, str) or not _is_iterable(field):
                 return self.to_index(field)
+            elif isinstance(field, sparse.COO):
+                if field.nnz == 0:
+                    return field
+                return sparse.COO(
+                    field.coords,
+                    np.asarray([self.to_index(d) for d in field.data]),
+                    field.shape)
             else:
                 if isinstance(field[0], str) or not _is_iterable(field[0]):
                     return [self.to_index(w) for w in field]
                 else:
-                    if not isinstance(field[0][0], str) and _is_iterable(field[0][0]):
-                        raise RuntimeError("Only support field with 2 dimensions.")
+                    if not isinstance(field[0][0], str) and _is_iterable(
+                            field[0][0]):
+                        raise RuntimeError(
+                            "Only support field with 2 dimensions.")
                     return [[self.to_index(c) for c in w] for w in field]
-        
+
         new_field_name = new_field_name or field_name
-        
+
         if type(new_field_name) == type(field_name):
             if isinstance(new_field_name, list):
                 assert len(new_field_name) == len(field_name), "new_field_name should have same number elements with " \
@@ -319,25 +337,34 @@ class Vocabulary(object):
                 field_name = [field_name]
                 new_field_name = [new_field_name]
             else:
-                raise TypeError("field_name and new_field_name can only be str or List[str].")
-        
+                raise TypeError(
+                    "field_name and new_field_name can only be str or List[str]."
+                )
+
         for idx, dataset in enumerate(datasets):
             if isinstance(dataset, DataSet):
                 try:
                     for f_n, n_f_n in zip(field_name, new_field_name):
-                        dataset.apply_field(index_instance, field_name=f_n, new_field_name=n_f_n)
+                        dataset.apply_field(index_instance,
+                                            field_name=f_n,
+                                            new_field_name=n_f_n)
                 except Exception as e:
-                    logger.info("When processing the `{}` dataset, the following error occurred.".format(idx))
+                    logger.info(
+                        "When processing the `{}` dataset, the following error occurred."
+                        .format(idx))
                     raise e
             else:
                 raise RuntimeError("Only DataSet type is allowed.")
         return self
-    
+
     @property
     def _no_create_word_length(self):
         return len(self._no_create_word)
-    
-    def from_dataset(self, *datasets, field_name, no_create_entry_dataset=None):
+
+    def from_dataset(self,
+                     *datasets,
+                     field_name,
+                     no_create_entry_dataset=None):
         r"""
         使用dataset的对应field中词构建词典::
 
@@ -360,39 +387,60 @@ class Vocabulary(object):
         if isinstance(field_name, str):
             field_name = [field_name]
         elif not isinstance(field_name, list):
-            raise TypeError('invalid argument field_name: {}'.format(field_name))
-        
+            raise TypeError(
+                'invalid argument field_name: {}'.format(field_name))
+
         def construct_vocab(ins, no_create_entry=False):
             for fn in field_name:
                 field = ins[fn]
                 if isinstance(field, str) or not _is_iterable(field):
                     if field not in self.specials:
                         self.add_word(field, no_create_entry=no_create_entry)
+                elif isinstance(field, sparse.COO):
+                    for word in field.data:
+                        self.add_word(word, no_create_entry=no_create_entry)
                 else:
                     if isinstance(field[0], str) or not _is_iterable(field[0]):
                         for word in field:
                             if word not in self.specials:
-                                self.add_word(word, no_create_entry=no_create_entry)
-                    else:
-                        if not isinstance(field[0][0], str) and _is_iterable(field[0][0]):
-                            raise RuntimeError("Only support field with 2 dimensions.")
+                                self.add_word(word,
+                                              no_create_entry=no_create_entry)
+                    elif isinstance(field[0][0],
+                                    str) or not _is_iterable(field[0][0]):
                         for words in field:
                             for word in words:
                                 if word not in self.specials:
-                                    self.add_word(word, no_create_entry=no_create_entry)
-        
+                                    self.add_word(
+                                        word, no_create_entry=no_create_entry)
+                    else:
+                        if not isinstance(field[0][0][0],
+                                          str) and _is_iterable(
+                                              field[0][0][0]):
+                            raise RuntimeError(
+                                "Only support field with <=3 dimensions.")
+                        for sent in field:
+                            for words in sent:
+                                for word in words:
+                                    if word not in self.specials:
+                                        self.add_word(
+                                            word,
+                                            no_create_entry=no_create_entry)
+
         for idx, dataset in enumerate(datasets):
             if isinstance(dataset, DataSet):
                 try:
                     dataset.apply(construct_vocab)
                 except BaseException as e:
-                    logger.error("When processing the `{}` dataset, the following error occurred:".format(idx))
+                    logger.error(
+                        "When processing the `{}` dataset, the following error occurred:"
+                        .format(idx))
                     raise e
             else:
                 raise TypeError("Only DataSet type is allowed.")
-        
+
         if no_create_entry_dataset is not None:
-            partial_construct_vocab = partial(construct_vocab, no_create_entry=True)
+            partial_construct_vocab = partial(construct_vocab,
+                                              no_create_entry=True)
             if isinstance(no_create_entry_dataset, DataSet):
                 no_create_entry_dataset.apply(partial_construct_vocab)
             elif isinstance(no_create_entry_dataset, list):
@@ -401,7 +449,7 @@ class Vocabulary(object):
                         raise TypeError("Only DataSet type is allowed.")
                     dataset.apply(partial_construct_vocab)
         return self
-    
+
     def _is_word_no_create_entry(self, word):
         r"""
         判断当前的word是否是不需要创建entry的，具体参见from_dataset的说明
@@ -409,7 +457,7 @@ class Vocabulary(object):
         :return: bool
         """
         return word in self._no_create_word
-    
+
     def to_index(self, w):
         r"""
         将词转为数字. 若词不再词典中被记录, 将视为 unknown, 若 ``unknown=None`` , 将抛出 ``ValueError`` ::
@@ -422,7 +470,7 @@ class Vocabulary(object):
         :return int index: the number
         """
         return self.__getitem__(w)
-    
+
     @property
     @_check_build_vocab
     def unknown_idx(self):
@@ -432,7 +480,7 @@ class Vocabulary(object):
         if self.unknown is None:
             return None
         return self._word2idx[self.unknown]
-    
+
     @property
     @_check_build_vocab
     def padding_idx(self):
@@ -442,7 +490,7 @@ class Vocabulary(object):
         if self.padding is None:
             return None
         return self._word2idx[self.padding]
-    
+
     @_check_build_vocab
     def to_word(self, idx):
         r"""
@@ -452,7 +500,7 @@ class Vocabulary(object):
         :return str word: the word
         """
         return self._idx2word[idx]
-    
+
     def clear(self):
         r"""
         删除Vocabulary中的词表数据。相当于重新初始化一下。
@@ -465,7 +513,7 @@ class Vocabulary(object):
         self.rebuild = True
         self._no_create_word.clear()
         return self
-    
+
     def __getstate__(self):
         r"""Use to prepare data for pickle.
 
@@ -475,17 +523,17 @@ class Vocabulary(object):
         # no need to pickle _idx2word as it can be constructed from _word2idx
         del state['_idx2word']
         return state
-    
+
     def __setstate__(self, state):
         r"""Use to restore state from pickle.
 
         """
         self.__dict__.update(state)
         self.build_reverse_vocab()
-    
+
     def __repr__(self):
         return "Vocabulary({}...)".format(list(self.word_count.keys())[:5])
-    
+
     @_check_build_vocab
     def __iter__(self):
         # 依次(word1, 0), (word1, 1)
@@ -513,7 +561,8 @@ class Vocabulary(object):
         f.write(f'min_freq\t{self.min_freq}\n')
         f.write(f'unknown\t{self.unknown}\n')
         f.write(f'padding\t{self.padding}\n')
-        f.write('\t'.join(['specials', *self.specials])); f.write('\n')
+        f.write('\t'.join(['specials', *self.specials]))
+        f.write('\n')
         f.write(f'rebuild\t{self.rebuild}\n')
         f.write('\n')
         # idx: 如果idx为-2, 说明还没有进行build; 如果idx为-1，说明该词未编入
@@ -556,13 +605,13 @@ class Vocabulary(object):
                     continue
                 value = value[0]
                 if name in ('max_size', 'min_freq'):
-                    value = int(value) if value!='None' else None
+                    value = int(value) if value != 'None' else None
                     setattr(vocab, name, value)
                 elif name in ('unknown', 'padding'):
-                    value = value if value!='None' else None
+                    value = value if value != 'None' else None
                     setattr(vocab, name, value)
                 elif name == 'rebuild':
-                    vocab.rebuild = True if value=='True' else False
+                    vocab.rebuild = True if value == 'True' else False
             else:
                 break
         word_counter = {}
@@ -572,7 +621,8 @@ class Vocabulary(object):
             line = line.strip('\n')
             if line:
                 parts = line.split('\t')
-                word,count,idx,no_create_entry = parts[0], int(parts[1]), int(parts[2]), int(parts[3])
+                word, count, idx, no_create_entry = parts[0], int(
+                    parts[1]), int(parts[2]), int(parts[3])
                 if idx >= 0:
                     word2idx[word] = idx
                 word_counter[word] = count
@@ -581,7 +631,7 @@ class Vocabulary(object):
 
         word_counter = Counter(word_counter)
         no_create_entry_counter = Counter(no_create_entry_counter)
-        if len(word2idx)>0:
+        if len(word2idx) > 0:
             idx = 0
             if vocab.padding:
                 word2idx[vocab.padding] = idx
@@ -592,7 +642,7 @@ class Vocabulary(object):
             for special in vocab.specials:
                 word2idx[special] = idx
                 idx += 1
-            idx2word = {value:key for key,value in word2idx.items()}
+            idx2word = {value: key for key, value in word2idx.items()}
 
         vocab.word_count = word_counter
         vocab._no_create_word = no_create_entry_counter
